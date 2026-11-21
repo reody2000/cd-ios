@@ -63,7 +63,8 @@ final class BridgeGateway {
         case "proxyPost":
             return HTTPResponse.json(["v": proxyPost(url: str(0), headersJSON: str(1), bodyBase64: str(2), contentType: str(3))])
         case "proxyPostAsync":
-            proxyPostAsync(url: str(0), headersJSON: str(1), bodyBase64: str(2), contentType: str(3), callback: str(4))
+            // 契约对齐 Android f1.proxyPostAsync(id, url, headersJSON, bodyBase64, contentType)
+            proxyPostAsync(id: str(0), url: str(1), headersJSON: str(2), bodyBase64: str(3), contentType: str(4))
             return HTTPResponse.json(["v": NSNull()])
         case "gmXmlHttpRequest":
             gmXmlHttpRequest(id: str(0), json: str(1))
@@ -219,24 +220,55 @@ final class BridgeGateway {
         ]
     }
 
-    private func proxyPostAsync(url: String, headersJSON: String, bodyBase64: String, contentType: String, callback: String) {
-        guard ProxyClient.expand(url) != nil, let target = URL(string: ProxyClient.expand(url)!) else { return }
-        var request = URLRequest(url: target, timeoutInterval: 60)
-        request.httpMethod = "POST"
-        request.httpBody = Data(base64Encoded: bodyBase64) ?? Data()
-        if !contentType.isEmpty { request.setValue(contentType, forHTTPHeaderField: "Content-Type") }
-        for (k, v) in parseHeaders(headersJSON) { request.setValue(v, forHTTPHeaderField: k) }
-
-        ProxyClient.perform(request) { result in
-            let payload: [String: Any] = [
-                "status": result.status,
-                "statusText": result.statusText,
-                "headers": result.headers,
-                "bodyBase64": result.body.base64EncodedString()
-            ]
-            let json = Self.jsonString(payload)
-            self.evalOnWebView("try{window[\(Self.jsString(callback))](\(Self.jsString(json)));}catch(e){}")
+    private func proxyPostAsync(id: String, url: String, headersJSON: String, bodyBase64: String, contentType: String) {
+        guard ProxyClient.expand(url) != nil else {
+            evalRoleProxyResponse(id: id, payload: ["status": 0, "error": "bad url", "bodyBase64": ""])
+            return
         }
+        let headers = parseHeaders(headersJSON)
+        let body = Data(base64Encoded: bodyBase64) ?? Data()
+        DispatchQueue.global().async {
+            let result = ProxyClient.post(url: url, headers: headers, body: body, contentType: contentType)
+            let payload: [String: Any]
+            if result.status == 0 {
+                payload = ["status": 0, "error": "proxy failed", "bodyBase64": ""]
+            } else {
+                payload = [
+                    "status": result.status,
+                    "statusText": result.statusText,
+                    "headers": result.headers,
+                    "bodyBase64": result.body.base64EncodedString()
+                ]
+            }
+            self.evalRoleProxyResponse(id: id, payload: payload)
+        }
+    }
+
+    /// 对齐 Android b0：try{window.__cdRoleProxyResponse&&window.__cdRoleProxyResponse(id,json);}catch(e){}
+    private func evalRoleProxyResponse(id: String, payload: [String: Any]) {
+        evalOnWebView("try{window.__cdRoleProxyResponse&&window.__cdRoleProxyResponse(\(Self.jsString(id)),\(Self.jsonString(payload)));}catch(e){}")
+    }
+
+    // MARK: 原始请求反代（游戏 XHR 同源转发 /__abs/ 与 /api/ POST）
+
+    func proxyRaw(pathOrURL: String, method: String, headers: [String: String], body: Data) -> HTTPResponse {
+        guard let expanded = ProxyClient.expand(pathOrURL),
+              let url = URL(string: expanded),
+              let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
+              let host = url.host?.lowercased(),
+              host.hasSuffix("hortorgames.com") || host.hasSuffix("qq.com") else {
+            return .notFound()
+        }
+        let result = ProxyClient.raw(url: pathOrURL, method: method, headers: headers, body: body)
+        guard result.status != 0 else { return .notFound() }
+
+        var responseHeaders: [String: String] = [:]
+        let drop: Set<String> = ["content-encoding", "content-length", "transfer-encoding",
+                                 "connection", "keep-alive", "set-cookie"]
+        for (k, v) in result.headers where !drop.contains(k.lowercased()) {
+            responseHeaders[k] = v
+        }
+        return HTTPResponse(status: result.status, headers: responseHeaders, body: result.body)
     }
 
     private func gmXmlHttpRequest(id: String, json: String) {
@@ -257,10 +289,14 @@ final class BridgeGateway {
                                  : 30)
         request.httpMethod = method
         if let headers = options["headers"] as? [String: Any] {
-            for (k, v) in headers {
+            let envSkip: Set<String> = ["user-agent", "origin", "referer", "accept-encoding",
+                                        "host", "content-length", "connection"]
+            for (k, v) in headers where !envSkip.contains(k.lowercased()) {
                 if let text = v as? String { request.setValue(text, forHTTPHeaderField: k) }
             }
         }
+        // 对齐 Android af()/X2()：GM 请求同样带标准代理头
+        ProxyClient.applyDefaults(&request, host: url.host)
         if let dataString = options["data"] as? String {
             let base64 = options["dataBase64"] as? Bool ?? false
             request.httpBody = base64 ? Data(base64Encoded: dataString) : Data(dataString.utf8)

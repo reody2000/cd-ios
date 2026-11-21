@@ -43,7 +43,7 @@ enum ScriptInjector {
 
           window.AndroidBinBridge = window.AndroidBinBridge || {
             proxyPost: function(url, headers, bodyB64, contentType) { return js('proxyPost', [url, headers, bodyB64, contentType]); },
-            proxyPostAsync: function(url, headers, bodyB64, contentType, callback) { fire('proxyPostAsync', [url, headers, bodyB64, contentType, callback]); },
+            proxyPostAsync: function(id, url, headers, bodyB64, contentType) { fire('proxyPostAsync', [id, url, headers, bodyB64, contentType]); },
             gmGetValue: function(key) { return js('gmGetValue', [key]); },
             gmSetValue: function(key, value) { return js('gmSetValue', [key, value]); },
             gmDeleteValue: function(key) { return js('gmDeleteValue', [key]); },
@@ -77,6 +77,43 @@ enum ScriptInjector {
             finishSaveImage: function(token, name) { return js('finishSaveImage', [token, name]); },
             getWeixinQR: function() { return js('getWeixinQR', []); }
           };
+
+          // 游戏传输层绝对地址改写：
+          // Android 用 shouldInterceptRequest 拦截转发游戏 XHR/fetch，WKWebView 无此机制，
+          // 跨域请求会被 CORS 预检拦截（游戏登录 POST 因此失败）。
+          // 改写为本地网关 /__abs/<url> 同源转发，语义与 Android 反代一致。
+          (function () {
+            var gate = 'http://127.0.0.1:\(port)/__abs/';
+            var re = /^https?:\\/\\/[^/]*hortorgames\\.com\\//i;
+            function rw(u) {
+              try {
+                if (typeof u === 'string' && re.test(u)) return gate + encodeURIComponent(u);
+              } catch (e) {}
+              return u;
+            }
+            try {
+              var origOpen = XMLHttpRequest.prototype.open;
+              XMLHttpRequest.prototype.open = function (method, url) {
+                if (arguments.length > 1) arguments[1] = rw(url);
+                return origOpen.apply(this, arguments);
+              };
+            } catch (e) {}
+            try {
+              if (typeof window.fetch === 'function') {
+                var origFetch = window.fetch;
+                window.fetch = function (input, init) {
+                  try {
+                    if (typeof input === 'string') {
+                      input = rw(input);
+                    } else if (input && typeof input.url === 'string' && re.test(input.url)) {
+                      input = new Request(rw(input.url), input);
+                    }
+                  } catch (e) {}
+                  return origFetch.call(this, input, init);
+                };
+              }
+            } catch (e) {}
+          })();
         })();
         """
         return WKUserScript(source: js, injectionTime: .atDocumentStart, forMainFrameOnly: true)

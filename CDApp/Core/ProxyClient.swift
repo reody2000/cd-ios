@@ -64,7 +64,7 @@ enum ProxyClient {
         "host", "content-length", "connection",
     ]
 
-    private static func applyDefaults(_ request: inout URLRequest, host: String?) {
+    static func applyDefaults(_ request: inout URLRequest, host: String?) {
         // 对齐 Android X2()：Accept-Encoding: identity，响应 body 恒为明文
         request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
         if let host, host.contains("weixin.qq.com") {
@@ -95,6 +95,28 @@ enum ProxyClient {
         }
         request.setValue("keep-alive", forHTTPHeaderField: "Connection")
 
+        return execute(request)
+    }
+
+    /// 原始方法转发（游戏 XHR 同源转发 /__abs/ 与 /api/ POST 反代）。
+    /// 对齐 Android：GET 由 shouldInterceptRequest 拦截代理，POST 由 WebView 直发；
+    /// iOS 无拦截机制，统一经此方法带 X2 头转发。
+    static func raw(url: String, method: String, headers: [String: String], body: Data, timeout: TimeInterval = 60) -> ProxyResult {
+        guard let expanded = expand(url), let target = URL(string: expanded) else {
+            return ProxyResult(status: 0, statusText: "", headers: [:], body: Data())
+        }
+        var request = URLRequest(url: target, timeoutInterval: timeout)
+        request.httpMethod = method.uppercased()
+        if !body.isEmpty { request.httpBody = body }
+        applyDefaults(&request, host: target.host)
+        let skip = envHeaders.union(["content-type"])
+        for (k, v) in headers where !skip.contains(k.lowercased()) {
+            request.setValue(v, forHTTPHeaderField: k)
+        }
+        if let contentType = headers.first(where: { $0.key.lowercased() == "content-type" })?.value,
+           !contentType.isEmpty {
+            request.setValue(contentType, forHTTPHeaderField: "Content-Type")
+        }
         return execute(request)
     }
 

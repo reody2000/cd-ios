@@ -207,6 +207,15 @@ final class LocalHTTPServer {
             let name = String(request.path.dropFirst("/__bridge/".count))
             return bridge.handle(method: name, body: request.body)
         }
+        // 游戏传输层同源转发：/__abs/<URL 编码的绝对地址>（XHR/fetch 改写落点，任何方法）
+        if request.path.hasPrefix("/__abs/") {
+            let encoded = String(request.path.dropFirst("/__abs/".count))
+            guard let urlString = encoded.removingPercentEncoding, !urlString.isEmpty else {
+                return HTTPResponse.notFound()
+            }
+            return bridge.proxyRaw(pathOrURL: urlString, method: request.method,
+                                   headers: request.headers, body: request.body)
+        }
         if request.method == "GET" || request.method == "HEAD" {
             let response = serveStatic(path: request.path, headOnly: request.method == "HEAD")
             if response.status != 404 { return response }
@@ -216,6 +225,12 @@ final class LocalHTTPServer {
                 return bridge.proxyGet(pathWithQuery: target, headers: request.headers)
             }
             return response
+        }
+        // POST 等：API 路径反代（游戏登录等请求。Android 由 WebView 直发同源 POST，iOS 统一走网关）
+        if request.path.hasPrefix("/api/") {
+            let target = request.query.isEmpty ? request.path : "\(request.path)?\(request.query)"
+            return bridge.proxyRaw(pathOrURL: target, method: request.method,
+                                   headers: request.headers, body: request.body)
         }
         return HTTPResponse.notFound()
     }
