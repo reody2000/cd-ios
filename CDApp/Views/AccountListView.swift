@@ -70,12 +70,9 @@ struct AccountListView: View {
             }
         }
         .navigationViewStyle(.stack)
-        .fileImporter(isPresented: $showImporter, allowedContentTypes: [.item], allowsMultipleSelection: false) { result in
-            switch result {
-            case .success(let urls):
-                if let url = urls.first { app.importAccount(url: url) }
-            case .failure(let error):
-                app.showToast("导入失败：\(error.localizedDescription)")
+        .sheet(isPresented: $showImporter) {
+            DocumentPicker { url in
+                app.importAccount(url: url)
             }
         }
         .sheet(isPresented: $showShare) {

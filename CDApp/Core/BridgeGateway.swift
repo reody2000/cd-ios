@@ -174,6 +174,10 @@ final class BridgeGateway {
             notifyOnMain(.cdPickAvatar, userInfo: ["name": str(0)])
             return HTTPResponse.json(["v": NSNull()])
 
+        // 微信扫码登录：原生直取二维码（WKWebView 解析 HTML 不可靠）
+        case "getWeixinQR":
+            return HTTPResponse.json(["v": weixinQRPayload()])
+
         default:
             return HTTPResponse.json(["__err": "unknown bridge method: \(method)"])
         }
@@ -289,6 +293,39 @@ final class BridgeGateway {
     }
 
     // MARK: 图片保存
+
+    /// 请求微信二维码页面并提取 uuid，返回给 H5 直接渲染
+    private func weixinQRPayload() -> [String: Any] {
+        let api = "/api/weixin/connect/app/qrconnect"
+            + "?appid=wxfb0d5667e5cb1c44"
+            + "&bundleid=com.hortor.games.xyzw"
+            + "&scope=snsapi_base,snsapi_userinfo,snsapi_friend,snsapi_message"
+            + "&state=weixin"
+        let result = ProxyClient.get(url: api, headers: [:])
+        guard result.status == 200 else {
+            return ["ok": false, "status": result.status]
+        }
+        let html = String(data: result.body, encoding: .utf8)
+            ?? String(data: result.body, encoding: .isoLatin1)
+            ?? ""
+        let patterns = [
+            #"uuid\s*[:=]\s*"([A-Za-z0-9_-]{8,})""#,
+            #"/connect/qrcode/([A-Za-z0-9_-]{8,})"#,
+        ]
+        for pattern in patterns {
+            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
+            let full = NSRange(html.startIndex..<html.endIndex, in: html)
+            guard let match = regex.firstMatch(in: html, range: full), match.numberOfRanges > 1,
+                  let range = Range(match.range(at: 1), in: html) else { continue }
+            let uuid = String(html[range])
+            return ["ok": true,
+                    "uuid": uuid,
+                    "qrUrl": "https://open.weixin.qq.com/connect/qrcode/\(uuid)"]
+        }
+        return ["ok": false,
+                "htmlLength": result.body.count,
+                "head": String(html.prefix(160))]
+    }
 
     private func saveDataURL(name: String, dataURL: String) -> [String: Any] {
         var base64 = dataURL

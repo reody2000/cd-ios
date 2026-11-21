@@ -74,7 +74,8 @@ enum ScriptInjector {
             chooseAvatarImage: function(name) { fire('chooseAvatarImage', [name]); },
             beginSaveImage: function() { return js('beginSaveImage', []); },
             appendSaveImage: function(token, b64) { return js('appendSaveImage', [token, b64]); },
-            finishSaveImage: function(token, name) { return js('finishSaveImage', [token, name]); }
+            finishSaveImage: function(token, name) { return js('finishSaveImage', [token, name]); },
+            getWeixinQR: function() { return js('getWeixinQR', []); }
           };
         })();
         """

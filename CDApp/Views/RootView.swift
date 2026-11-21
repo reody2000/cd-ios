@@ -35,6 +35,10 @@ struct RootView: View {
         .onReceive(NotificationCenter.default.publisher(for: .cdPickAvatar)) { _ in
             app.showToast("请在账号管理中设置头像")
         }
+        .onOpenURL { url in
+            // 从「文件」App 直接分享/打开账号 bin
+            app.importAccount(url: url)
+        }
         .sheet(isPresented: $app.showLogin) {
             LoginView(port: app.port)
                 .environmentObject(app)

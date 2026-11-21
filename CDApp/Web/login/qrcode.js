@@ -165,6 +165,26 @@
   }
 
   function tryGetWeixinQR() {
+    // 原生直取（WKWebView 中 HTML 解析链路不可靠，优先走 Bridge）
+    try {
+      var nativeBridge = (typeof AndroidBinBridge !== 'undefined') ? AndroidBinBridge : null;
+      if (nativeBridge && nativeBridge.getWeixinQR) {
+        var raw = nativeBridge.getWeixinQR();
+        var nativeRes = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        if (nativeRes && nativeRes.ok && nativeRes.qrUrl) {
+          state.qrUUID = nativeRes.uuid || String(nativeRes.qrUrl).split('/').pop().split('?')[0];
+          $qrImg.src = nativeRes.qrUrl;
+          $qrImg.style.display = '';
+          $qrPh.style.display = 'none';
+          return Promise.resolve(true);
+        }
+        if (nativeRes && nativeRes.ok === false) {
+          brLog('wx', '原生取码失败 status=' + nativeRes.status + ' len=' + nativeRes.htmlLength + ' head=' + (nativeRes.head || ''));
+        }
+      }
+    } catch (e) {
+      brLog('wx', '原生取码异常 ' + e);
+    }
     var url = '/api/weixin/connect/app/qrconnect'
       + '?appid=wxfb0d5667e5cb1c44'
       + '&bundleid=com.hortor.games.xyzw'
