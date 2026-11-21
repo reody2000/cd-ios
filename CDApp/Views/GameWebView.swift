@@ -1,5 +1,6 @@
 import SwiftUI
 import WebKit
+import UniformTypeIdentifiers
 
 /// 游戏主 WebView：加载本地网关的 index.html，并注入脚本环境
 struct GameWebView: UIViewRepresentable {
@@ -72,6 +73,44 @@ struct GameWebView: UIViewRepresentable {
                 UIApplication.shared.open(url)
             }
             return nil
+        }
+
+        // MARK: <input type="file">（游戏内导入账号 BIN，对齐 Android onShowFileChooser）
+
+        private var openPanelDelegate: OpenPanelDelegate?
+
+        func webView(_ webView: WKWebView,
+                     runOpenPanelWith parameters: WKOpenPanelParameters,
+                     initiatedByFrame frame: WKFrameInfo,
+                     completionHandler: @escaping ([URL]?) -> Void) {
+            let delegate = OpenPanelDelegate(completionHandler: completionHandler)
+            openPanelDelegate = delegate
+            let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.item], asCopy: true)
+            picker.allowsMultipleSelection = parameters.allowsMultipleSelection
+            picker.delegate = delegate
+            var responder: UIResponder? = webView
+            while let current = responder {
+                if let vc = current as? UIViewController {
+                    vc.present(picker, animated: true)
+                    break
+                }
+                responder = current.next
+            }
+        }
+
+        final class OpenPanelDelegate: NSObject, UIDocumentPickerDelegate {
+            private var handler: (([URL]?) -> Void)?
+            init(completionHandler: @escaping ([URL]?) -> Void) { handler = completionHandler }
+
+            func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+                handler?(urls)
+                handler = nil
+            }
+
+            func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+                handler?(nil)
+                handler = nil
+            }
         }
     }
 }

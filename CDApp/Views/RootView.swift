@@ -10,9 +10,8 @@ struct RootView: View {
 
             if app.port == 0 {
                 launchingView
-            } else if app.currentAccount == nil {
-                AccountListView(standalone: true)
             } else {
+                // 与 Android 版一致：启动直接进游戏（未登录/无账号时由游戏内流程引导）
                 gameView
             }
 

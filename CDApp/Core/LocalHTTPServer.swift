@@ -237,13 +237,11 @@ final class LocalHTTPServer {
             return HTTPResponse.notFound()
         }
 
-        var headers: [String: String] = [
+        // no-store：本地资源直接读盘，禁止 WKWebView 缓存旧版本脚本（更新 App 后曾命中缓存）
+        let headers: [String: String] = [
             "Content-Type": Self.mimeType(for: fileURL.pathExtension),
-            "Cache-Control": "public, max-age=3600"
+            "Cache-Control": "no-store"
         ]
-        if relative.hasSuffix(".html") || relative.hasSuffix(".json") {
-            headers["Cache-Control"] = "no-cache"
-        }
         return HTTPResponse(status: 200,
                             headers: headers,
                             body: headOnly ? Data() : data)

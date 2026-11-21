@@ -54,16 +54,25 @@ enum ProxyClient {
 
     // MARK: 执行请求（同步，供同步 XHR 网关使用）
 
-    /// 对齐 Android X2() 的请求头：微信接口必须带 MicroMessenger UA，否则返回错误页
+    /// 对齐 Android X2() 的请求头：微信接口必须带 MicroMessenger UA，否则返回「抱歉，出错了」错误页（实测）
     private static let defaultUA = "Mozilla/5.0 (Linux; Android 12; 22081212C Build/SKQ1.211006.001) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120 Mobile Safari/537.36"
     private static let weixinUA = "Mozilla/5.0 (Linux; Android 7.0; Mi-4c Build/NRD90M; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/53.0.2785.49 Mobile MQQBrowser/6.2 TBS/043632 Safari/537.36 MicroMessenger/6.6.1.1220(0x26060135) NetType/WIFI Language/zh_CN"
 
+    /// 浏览器环境头：来自 WKWebView 的请求头不允许覆盖 X2 语义（微信 UA / Origin 是服务端强校验项）
+    private static let envHeaders: Set<String> = [
+        "user-agent", "origin", "referer", "accept-encoding",
+        "host", "content-length", "connection",
+    ]
+
     private static func applyDefaults(_ request: inout URLRequest, host: String?) {
+        // 对齐 Android X2()：Accept-Encoding: identity，响应 body 恒为明文
+        request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
         if let host, host.contains("weixin.qq.com") {
             request.setValue(weixinUA, forHTTPHeaderField: "User-Agent")
             request.setValue("https://open.weixin.qq.com/", forHTTPHeaderField: "Referer")
         } else {
             request.setValue(defaultUA, forHTTPHeaderField: "User-Agent")
+            request.setValue("https://xxz-xyzw.hortorgames.com", forHTTPHeaderField: "Origin")
             request.setValue("https://xxz-xyzw.hortorgames.com/", forHTTPHeaderField: "Referer")
         }
     }
@@ -81,7 +90,7 @@ enum ProxyClient {
         }
         for (k, v) in headers {
             let lower = k.lowercased()
-            if lower == "content-type" || lower == "content-length" || lower == "host" { continue }
+            if lower == "content-type" || envHeaders.contains(lower) { continue }
             request.setValue(v, forHTTPHeaderField: k)
         }
         request.setValue("keep-alive", forHTTPHeaderField: "Connection")
@@ -98,8 +107,7 @@ enum ProxyClient {
         var request = URLRequest(url: target, timeoutInterval: timeout)
         request.httpMethod = "GET"
         applyDefaults(&request, host: target.host)
-        let skip: Set<String> = ["host", "content-length", "content-type", "connection",
-                                 "accept-encoding", "origin", "referer"]
+        let skip = envHeaders.union(["content-type"])
         for (k, v) in headers where !skip.contains(k.lowercased()) {
             request.setValue(v, forHTTPHeaderField: k)
         }
