@@ -34,6 +34,13 @@ struct AccountListView: View {
                     if !standalone {
                         Button("关闭") { dismiss() }
                             .foregroundColor(.white)
+                    } else {
+                        Button {
+                            showSettingsSheet = true
+                        } label: {
+                            Image(systemName: "slider.horizontal.3")
+                        }
+                        .foregroundColor(.white)
                     }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -63,7 +70,7 @@ struct AccountListView: View {
             }
         }
         .navigationViewStyle(.stack)
-        .fileImporter(isPresented: $showImporter, allowedContentTypes: [.data, .archive], allowsMultipleSelection: false) { result in
+        .fileImporter(isPresented: $showImporter, allowedContentTypes: [.item], allowsMultipleSelection: false) { result in
             switch result {
             case .success(let urls):
                 if let url = urls.first { app.importAccount(url: url) }

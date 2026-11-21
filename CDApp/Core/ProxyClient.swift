@@ -36,6 +36,14 @@ enum ProxyClient {
             }
             return "https://xxz-xyzw.hortorgames.com/login/serverlist" + query
         }
+        // 微信扫码登录：H5 用相对路径请求，这里补全到微信开放平台
+        // 轮询接口在 long.open.weixin.qq.com，其余在 open.weixin.qq.com
+        if path.hasPrefix("/api/weixin/connect/l/qrconnect") {
+            return "https://long.open.weixin.qq.com" + String(path.dropFirst("/api/weixin".count))
+        }
+        if path.hasPrefix("/api/weixin/") {
+            return "https://open.weixin.qq.com" + String(path.dropFirst("/api/weixin".count))
+        }
         return "https://xxz-xyzw.hortorgames.com" + path
     }
 
@@ -46,6 +54,20 @@ enum ProxyClient {
 
     // MARK: 执行请求（同步，供同步 XHR 网关使用）
 
+    /// 对齐 Android X2() 的请求头：微信接口必须带 MicroMessenger UA，否则返回错误页
+    private static let defaultUA = "Mozilla/5.0 (Linux; Android 12; 22081212C Build/SKQ1.211006.001) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120 Mobile Safari/537.36"
+    private static let weixinUA = "Mozilla/5.0 (Linux; Android 7.0; Mi-4c Build/NRD90M; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/53.0.2785.49 Mobile MQQBrowser/6.2 TBS/043632 Safari/537.36 MicroMessenger/6.6.1.1220(0x26060135) NetType/WIFI Language/zh_CN"
+
+    private static func applyDefaults(_ request: inout URLRequest, host: String?) {
+        if let host, host.contains("weixin.qq.com") {
+            request.setValue(weixinUA, forHTTPHeaderField: "User-Agent")
+            request.setValue("https://open.weixin.qq.com/", forHTTPHeaderField: "Referer")
+        } else {
+            request.setValue(defaultUA, forHTTPHeaderField: "User-Agent")
+            request.setValue("https://xxz-xyzw.hortorgames.com/", forHTTPHeaderField: "Referer")
+        }
+    }
+
     static func post(url: String, headers: [String: String], body: Data, contentType: String, timeout: TimeInterval = 60) -> ProxyResult {
         guard let expanded = expand(url), let target = URL(string: expanded) else {
             return ProxyResult(status: 0, statusText: "", headers: [:], body: Data())
@@ -53,6 +75,7 @@ enum ProxyClient {
         var request = URLRequest(url: target, timeoutInterval: timeout)
         request.httpMethod = "POST"
         request.httpBody = body
+        applyDefaults(&request, host: target.host)
         if !contentType.isEmpty {
             request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         }
@@ -74,6 +97,7 @@ enum ProxyClient {
         }
         var request = URLRequest(url: target, timeoutInterval: timeout)
         request.httpMethod = "GET"
+        applyDefaults(&request, host: target.host)
         let skip: Set<String> = ["host", "content-length", "content-type", "connection",
                                  "accept-encoding", "origin", "referer"]
         for (k, v) in headers where !skip.contains(k.lowercased()) {
