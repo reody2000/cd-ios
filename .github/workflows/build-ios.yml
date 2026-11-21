@@ -1,0 +1,55 @@
+name: build-ios
+
+on:
+  push:
+    branches: [ main, master ]
+    tags: [ 'ios-*' ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build unsigned app
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project CDApp.xcodeproj \
+            -scheme CDApp \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build/DerivedData \
+            build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            ENABLE_BITCODE=NO
+
+      - name: Package unsigned IPA
+        run: |
+          set -euo pipefail
+          APP_PATH="build/DerivedData/Build/Products/Release-iphoneos/CDApp.app"
+          test -d "$APP_PATH"
+          rm -rf build/Payload build/CDApp-unsigned.ipa
+          mkdir -p build/Payload
+          cp -R "$APP_PATH" build/Payload/
+          cd build
+          zip -qry CDApp-unsigned.ipa Payload
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CDApp-unsigned-ipa
+          path: build/CDApp-unsigned.ipa
+          retention-days: 30

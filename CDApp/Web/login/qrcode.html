@@ -1,0 +1,1721 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>微信扫码登录</title>
+<style>
+  :root {
+    --bg: #1a1a2e;
+    --bg2: #232347;
+    --bg3: #2c2c52;
+    --fg: #e6e6f5;
+    --muted: #9aa0c0;
+    --accent: #5ab7ff;
+    --ok: #2f80d6;
+    --warn: #f0b73d;
+    --err: #ff6b6b;
+    --border: rgba(255,255,255,0.08);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; width: 100%; min-height: 100vh;
+    background: linear-gradient(180deg, #15152b 0%, #1a1a2e 100%);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 14px;
+    overflow-x: hidden;
+  }
+  .wrap {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 24px 20px 32px;
+  }
+  h1 {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0 0 8px;
+    text-align: center;
+    letter-spacing: 0.5px;
+  }
+  .sub {
+    text-align: center;
+    color: var(--muted);
+    font-size: 12px;
+    margin-bottom: 20px;
+  }
+  .status {
+    margin: 12px 0 16px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    font-size: 13px;
+    text-align: center;
+    min-height: 38px;
+    display: flex; align-items: center; justify-content: center;
+    word-break: break-all;
+  }
+  .status.info  { color: var(--accent); }
+  .status.ok    { color: var(--ok); }
+  .status.warn  { color: var(--warn); }
+  .status.err   { color: var(--err); }
+
+  .qr-box {
+    background: #fff;
+    border-radius: 14px;
+    aspect-ratio: 1 / 1;
+    width: 72%;
+    max-width: 320px;
+    margin: 8px auto 18px;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.35);
+  }
+  .qr-box img { width: 92%; height: 92%; object-fit: contain; }
+  .qr-box .placeholder {
+    color: #888; font-size: 12px; padding: 12px; text-align: center;
+  }
+
+  .btn-row { display: flex; gap: 10px; margin-top: 6px; }
+  .btn {
+    flex: 1;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--bg2);
+    color: var(--fg);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity .15s, transform .05s;
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn[disabled] { opacity: .45; pointer-events: none; }
+  .btn.primary {
+    background: linear-gradient(135deg,#3d7bff 0%,#5ab7ff 100%);
+    border-color: transparent;
+    color: #fff;
+  }
+  .btn.danger {
+    background: rgba(255,107,107,0.12);
+    border-color: rgba(255,107,107,0.4);
+    color: var(--err);
+  }
+
+  .log {
+    margin-top: 18px;
+    padding: 10px 12px;
+    background: rgba(0,0,0,0.3);
+    border-radius: 8px;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--muted);
+    max-height: 140px;
+    overflow-y: auto;
+    word-break: break-all;
+    white-space: pre-wrap;
+    border: 1px solid var(--border);
+    display: none;
+  }
+  .log.show { display: block; }
+  .log-line { margin: 0 0 2px; }
+  .log-line.err { color: var(--err); }
+  .log-line.ok  { color: var(--ok); }
+
+  /* 底部存储路径提示，弱视觉、不抢戏 */
+  .path-tip {
+    margin-top: 14px;
+    padding: 10px 12px;
+    background: rgba(0,0,0,0.22);
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    font-size: 11px;
+    line-height: 1.6;
+    color: var(--muted);
+  }
+  .path-tip-title {
+    color: var(--text);
+    font-size: 12px;
+    margin-bottom: 4px;
+    opacity: 0.85;
+  }
+  .path-tip-line { word-break: break-all; }
+  .path-tip code {
+    padding: 1px 5px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 4px;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 11px;
+    color: var(--text);
+  }
+
+
+  /* ===== 角色选择 dialog ===== */
+  .mask {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.62);
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 100;
+  }
+  .mask.show { display: flex; }
+  .dialog {
+    width: 100%;
+    max-width: 480px;
+    background: var(--bg);
+    border-radius: 16px 16px 0 0;
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -8px 32px rgba(0,0,0,0.5);
+    max-height: 86vh;
+    display: flex; flex-direction: column;
+    animation: slideUp 0.22s ease-out;
+  }
+  @keyframes slideUp {
+    from { transform: translateY(100%); }
+    to   { transform: translateY(0); }
+  }
+  .dialog .head {
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .dialog .head .title { font-size: 15px; font-weight: 600; }
+  .dialog .head .count {
+    font-size: 12px; color: var(--muted);
+    margin-left: 8px;
+  }
+  .dialog .toolbar {
+    padding: 10px 16px;
+    display: flex; gap: 10px; align-items: center;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .dialog .toolbar .selectAll {
+    display: flex; align-items: center; gap: 6px;
+    cursor: pointer; user-select: none;
+    font-size: 13px;
+  }
+  .dialog .toolbar .selected-info {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--accent);
+  }
+  .dialog .role-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 6px 8px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .role-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 12px;
+    border-radius: 10px;
+    margin: 4px 0;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    transition: background .15s, border-color .15s;
+  }
+  .role-item.checked {
+    background: var(--bg3);
+    border-color: rgba(90,183,255,0.5);
+  }
+  .role-item input[type=checkbox] {
+    width: 18px; height: 18px;
+    accent-color: var(--accent);
+    flex-shrink: 0;
+  }
+  .role-item .meta {
+    flex: 1; min-width: 0;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .role-item .name {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--fg);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .role-item .info {
+    font-size: 11px;
+    color: var(--muted);
+    display: flex; gap: 8px; flex-wrap: wrap;
+  }
+  .role-item .info .badge {
+    background: rgba(90,183,255,0.15);
+    color: var(--accent);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+  }
+  .role-item .info .pwr {
+    color: var(--warn);
+  }
+  .dialog .foot {
+    padding: 12px 16px calc(env(safe-area-inset-bottom) + 12px);
+    display: flex; gap: 10px;
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .dialog .empty {
+    padding: 40px 16px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  html, body {
+    background: transparent !important;
+    color: #30333a;
+    overflow: hidden;
+  }
+  body {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .wrap {
+    width: min(380px, calc(100vw - 52px));
+    margin: 0;
+    padding: 28px 28px 24px;
+    background: #fff;
+    color: #30333a;
+    border-radius: 4px;
+    box-shadow: 0 16px 46px rgba(0,0,0,0.28);
+  }
+  h1 {
+    text-align: left;
+    color: #30333a;
+    font-size: 22px;
+    margin-bottom: 22px;
+  }
+  .sub, .path-tip, .log { display: none !important; }
+  .status {
+    background: #f6f7f9;
+    border-color: #edf0f4;
+    color: #8b9099;
+    margin: 0 0 16px;
+    min-height: 34px;
+  }
+  .status.ok { color: #2f80d6; }
+  .status.err { color: #d94b4b; }
+  .status.warn { color: #bd8a18; }
+  .qr-box {
+    width: 100%;
+    max-width: none;
+    height: 280px;
+    aspect-ratio: auto;
+    margin: 0 0 34px;
+    border-radius: 0;
+    background: #f7f7f7;
+    box-shadow: none;
+  }
+  .qr-box .placeholder {
+    color: #a7abb3;
+    font-size: 16px;
+  }
+  .btn-row { margin-top: 0; }
+  .btn-row .btn {
+    background: transparent;
+    border: 0;
+    color: #9aa0a8;
+    font-size: 18px;
+  }
+  .btn-row .btn.primary {
+    background: transparent;
+    color: #3579bd;
+  }
+  .mask { background: rgba(0,0,0,0.48); }
+  .dialog {
+    background: #fff;
+    color: #30333a;
+    border: 0;
+    box-shadow: 0 -8px 30px rgba(0,0,0,0.18);
+  }
+  .dialog .head, .dialog .toolbar, .dialog .foot {
+    border-color: #edf0f4;
+  }
+  .role-item { border-color: #edf0f4; }
+  .role-item .name { color: #30333a; }
+
+  /* Compact native-shell style. */
+  body, input, button {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  .wrap {
+    width: min(330px, calc(100vw - 52px));
+    padding: 20px 18px 18px;
+    border-radius: 12px;
+  }
+  h1 {
+    font-size: 14px;
+    line-height: 22px;
+    font-weight: 600;
+    margin-bottom: 14px;
+    color: #191c22;
+    letter-spacing: 0;
+  }
+  .status {
+    min-height: 30px;
+    padding: 7px 10px;
+    margin: 0 0 12px;
+    border-radius: 8px;
+    font-size: 11px;
+    line-height: 16px;
+    color: #7c8491;
+  }
+  .qr-box {
+    height: 230px;
+    margin: 0 0 24px;
+    border-radius: 8px;
+  }
+  .qr-box .placeholder {
+    font-size: 12px;
+    color: #8c929c;
+  }
+  .btn-row {
+    gap: 8px;
+    margin-top: 0;
+  }
+  .btn-row .btn {
+    min-height: 38px;
+    padding: 0 8px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .btn-row .btn.primary {
+    color: #2f80d6;
+  }
+  .dialog {
+    border-radius: 16px 16px 0 0;
+  }
+  .dialog .head {
+    padding: 12px 14px 8px;
+  }
+  .dialog .head .title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #191c22;
+  }
+  .dialog .head .count {
+    font-size: 10px;
+    color: #7c8491;
+  }
+  .dialog .toolbar {
+    padding: 8px 14px;
+  }
+  .dialog .toolbar .selectAll {
+    font-size: 11px;
+    color: #30333a;
+  }
+  .dialog .toolbar .selected-info {
+    font-size: 10px;
+    color: #2f80d6;
+  }
+  .dialog .role-list {
+    padding: 6px 14px;
+  }
+  .role-item {
+    gap: 8px;
+    padding: 8px 0;
+  }
+  .role-item .name {
+    font-size: 12px;
+    font-weight: 600;
+    color: #20242b;
+  }
+  .role-item .meta,
+  .role-item .info {
+    font-size: 10px;
+    color: #7c8491;
+  }
+  .dialog .foot {
+    padding: 10px 14px calc(env(safe-area-inset-bottom) + 10px);
+  }
+  .dialog .foot .btn {
+    min-height: 36px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+  }
+  .dialog {
+    background: #f6f7f9;
+  }
+  .dialog .head,
+  .dialog .toolbar,
+  .dialog .foot {
+    background: #fff;
+  }
+  .dialog .role-list {
+    background: #f6f7f9;
+    padding: 8px 12px 10px;
+  }
+  .role-item {
+    align-items: center;
+    gap: 9px;
+    padding: 10px 12px;
+    margin: 7px 0;
+    border: 1px solid #edf0f4;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 1px 4px rgba(24, 32, 42, 0.08);
+  }
+  .role-item.checked {
+    border-color: #2f80d6;
+    background: #f7fbff;
+  }
+  .role-item input[type=checkbox] {
+    width: 14px;
+    height: 14px;
+    accent-color: #2f80d6;
+  }
+  .role-item .meta {
+    gap: 4px;
+  }
+  .role-item .info {
+    gap: 6px;
+    line-height: 16px;
+  }
+  .role-item .info .badge {
+    padding: 1px 6px;
+    border-radius: 8px;
+    background: #eef6ff;
+    color: #2f80d6;
+    font-size: 10px;
+  }
+  .role-item .info .pwr {
+    color: #d58a00;
+    font-size: 10px;
+    font-weight: 600;
+  }
+  .role-item .info .rid {
+    color: #8b9099;
+    font-size: 10px;
+  }
+  .role-request-banner {
+    position: fixed;
+    left: 50%;
+    top: calc(env(safe-area-inset-top) + 10px);
+    z-index: 160;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 14px;
+    min-height: 36px;
+    border-radius: 18px;
+    background: rgba(255,255,255,0.96);
+    color: #191c22;
+    font-size: 12px;
+    font-weight: 600;
+    box-shadow: 0 8px 24px rgba(24, 32, 42, 0.18);
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, -10px);
+    transition: opacity .18s ease, transform .18s ease;
+    white-space: nowrap;
+  }
+  .role-request-banner.show {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  .role-request-banner .spinner {
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    border: 2px solid #d8dee8;
+    border-top-color: #2f80d6;
+    animation: roleSpin .75s linear infinite;
+  }
+  @keyframes roleSpin { to { transform: rotate(360deg); } }
+
+  /* Final iOS skin: keep this last so older embedded styles cannot leak through. */
+  html, body {
+    background: transparent !important;
+    color: #1c1c1e;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    overflow: hidden;
+  }
+  body {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .wrap {
+    width: min(330px, calc(100vw - 44px));
+    margin: 0;
+    padding: 20px 18px 18px;
+    background: rgba(255,255,255,0.98);
+    color: #1c1c1e;
+    border: 1px solid rgba(60,60,67,0.08);
+    border-radius: 22px;
+    box-shadow: 0 18px 50px rgba(0,0,0,0.22);
+  }
+  h1 {
+    text-align: left;
+    color: #1c1c1e;
+    font-size: 15px;
+    line-height: 22px;
+    font-weight: 700;
+    margin: 0 0 14px;
+    letter-spacing: 0;
+  }
+  .sub, .path-tip, .log {
+    display: none !important;
+  }
+  .status {
+    min-height: 32px;
+    margin: 0 0 12px;
+    padding: 7px 10px;
+    border: 1px solid #e5e5ea;
+    border-radius: 11px;
+    background: #f2f2f7;
+    color: #8e8e93;
+    font-size: 11px;
+    line-height: 16px;
+  }
+  .status.info, .status.ok { color: #007aff; }
+  .status.err { color: #ff3b30; }
+  .status.warn { color: #b26a00; }
+  .qr-box {
+    width: 100%;
+    max-width: none;
+    height: 226px;
+    aspect-ratio: auto;
+    margin: 0 0 20px;
+    border-radius: 16px;
+    background: #f2f2f7;
+    box-shadow: none;
+  }
+  .qr-box .placeholder {
+    color: #8e8e93;
+    font-size: 12px;
+  }
+  .btn-row {
+    gap: 8px;
+    margin-top: 0;
+  }
+  .btn-row .btn {
+    min-height: 40px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 14px;
+    background: #f2f2f7;
+    color: #636366;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .btn-row .btn.primary {
+    background: #007aff;
+    color: #fff;
+  }
+  .btn-row .btn.danger {
+    background: #fff1f0;
+    color: #ff3b30;
+  }
+  .mask {
+    background: rgba(0,0,0,0.42);
+  }
+  .dialog {
+    width: 100%;
+    max-width: 480px;
+    max-height: 86vh;
+    background: #f2f2f7;
+    color: #1c1c1e;
+    border: 0;
+    border-radius: 22px 22px 0 0;
+    box-shadow: 0 -12px 34px rgba(0,0,0,0.18);
+  }
+  .dialog .head,
+  .dialog .toolbar,
+  .dialog .foot {
+    background: #fff;
+    border-color: #e5e5ea;
+  }
+  .dialog .head {
+    padding: 13px 16px 9px;
+  }
+  .dialog .head .title {
+    color: #1c1c1e;
+    font-size: 14px;
+    font-weight: 700;
+  }
+  .dialog .head .count,
+  .role-item .meta,
+  .role-item .info,
+  .role-item .info .rid {
+    color: #8e8e93;
+  }
+  .dialog .toolbar .selectAll {
+    color: #1c1c1e;
+  }
+  .dialog .toolbar .selected-info {
+    color: #007aff;
+  }
+  .dialog .role-list {
+    background: #f2f2f7;
+    padding: 8px 12px 10px;
+  }
+  .role-item {
+    padding: 10px 12px;
+    margin: 7px 0;
+    border: 1px solid rgba(60,60,67,0.08);
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  .role-item.checked {
+    border-color: #007aff;
+    background: #f7fbff;
+  }
+  .role-item input[type=checkbox] {
+    accent-color: #007aff;
+  }
+  .role-item .name {
+    color: #1c1c1e;
+    font-weight: 700;
+  }
+  .role-item .info .badge {
+    background: #eef6ff;
+    color: #007aff;
+    border-radius: 9px;
+  }
+  .role-item .info .pwr {
+    color: #b26a00;
+  }
+  .dialog .foot .btn {
+    min-height: 40px;
+    border: 0;
+    border-radius: 14px;
+    font-weight: 700;
+  }
+  .role-request-banner {
+    background: rgba(255,255,255,0.96);
+    color: #1c1c1e;
+    border-radius: 18px;
+  }
+  .role-request-banner .spinner {
+    border-top-color: #007aff;
+  }
+</style>
+<style>
+  html.cd-dark body {
+    background: #101114 !important;
+    color: #f2f2f7 !important;
+  }
+  html.cd-dark .wrap {
+    background: #1c1c1e !important;
+    color: #f2f2f7 !important;
+    box-shadow: 0 16px 46px rgba(0,0,0,0.42);
+  }
+  html.cd-dark h1,
+  html.cd-dark .role-item .name {
+    color: #f2f2f7 !important;
+  }
+  html.cd-dark .status {
+    background: #2c2c2e !important;
+    border-color: #38383a !important;
+    color: #aeaeb2 !important;
+  }
+  html.cd-dark .btn-row .btn {
+    background: #26364a !important;
+    color: #b8d7ff !important;
+  }
+  html.cd-dark .btn-row .btn.primary {
+    background: #0a84ff !important;
+    color: #fff !important;
+  }
+  html.cd-dark .btn-row .btn.danger {
+    background: #3a2527 !important;
+    color: #ff8e88 !important;
+  }
+  html.cd-dark .dialog {
+    background: #101114 !important;
+    color: #f2f2f7 !important;
+  }
+  html.cd-dark .dialog .head,
+  html.cd-dark .dialog .toolbar,
+  html.cd-dark .dialog .foot {
+    background: #1c1c1e !important;
+    border-color: #38383a !important;
+  }
+  html.cd-dark .role-list {
+    background: #101114 !important;
+  }
+  html.cd-dark .role-item {
+    background: #1c1c1e !important;
+    border-color: #38383a !important;
+    box-shadow: none !important;
+  }
+  html.cd-dark .role-item.checked {
+    background: #1f3048 !important;
+    border-color: #0a84ff !important;
+  }
+  html.cd-dark .role-item .info .badge {
+    background: #26364a !important;
+  }
+  html.cd-dark .qr-box {
+    background: #fff !important;
+  }
+  html.cd-dark .role-request-banner {
+    background: #1c1c1e !important;
+    color: #f2f2f7 !important;
+  }
+</style>
+<script>
+(function () {
+    try {
+      if (/[?&]theme=dark(?:&|$)/.test(location.search)) {
+        document.documentElement.classList.add('cd-dark');
+      }
+    } catch (e) {}
+  })();
+</script>
+</head>
+<body>
+<div id="roleRequestBanner" class="role-request-banner">
+  <span class="spinner"></span>
+  <span>正在请求角色</span>
+</div>
+
+<div class="wrap">
+  <h1>微信扫码登录</h1>
+  <div class="sub">扫码后将自动生成 bin 文件并导入到文件管理</div>
+
+  <div id="status" class="status info">请使用微信扫码登录</div>
+
+  <div class="qr-box" id="qrBox">
+    <div class="placeholder" id="qrPlaceholder">二维码区域</div>
+    <img id="qrImg" alt="" style="display:none" referrerpolicy="no-referrer" />
+  </div>
+
+  <div class="btn-row">
+    <button class="btn" id="btnCancel">取消</button>
+    <button class="btn primary" id="btnGen">获取二维码</button>
+  </div>
+
+  <div class="log" id="log"></div>
+
+  <!--
+    底部存储路径提示：告诉用户扫码导入后 bin 文件去哪了。
+    两份落盘（与 WxQrcodeImportActivity.saveBin 行为一致）：
+      1) 公共 Download/xyzw/<名字-区服xxx>.bin —— 系统文件管理器可见、可拷贝/分享
+      2) App 私有 imported_data/  —— 自动出现在「文件管理」列表，无需再手动导入
+  -->
+  <div class="path-tip">
+    <div class="path-tip-title">导入后存储位置</div>
+    <div class="path-tip-line">公共目录：<code>Download/xyzw/&lt;名字-区服xxx&gt;.bin</code></div>
+    <div class="path-tip-line">同时已导入到 App「文件管理」列表，可直接使用</div>
+  </div>
+</div>
+
+<!-- 角色选择 dialog -->
+<div class="mask" id="roleMask">
+  <div class="dialog">
+    <div class="head">
+      <div>
+        <span class="title">选择要导入的角色</span>
+        <span class="count" id="roleCount"></span>
+      </div>
+    </div>
+    <div class="toolbar">
+      <label class="selectAll">
+        <input type="checkbox" id="chkAll" />
+        <span>全选</span>
+      </label>
+      <span class="selected-info" id="selInfo">已选 0</span>
+    </div>
+    <div class="role-list" id="roleList"></div>
+    <div class="foot">
+      <button class="btn danger" id="btnDlgCancel">取消</button>
+      <button class="btn primary" id="btnDlgOk">导入选中</button>
+    </div>
+  </div>
+</div>
+
+<!-- 依赖：lz4_encryptor.js 必须先加载，保证 window.GameCrypto 可用 -->
+<script src="../vendor/game-crypto.js"></script>
+
+<script>
+(function () {
+  'use strict';
+
+  // ============================================================
+  //  Bridge / 工具
+  // ============================================================
+  var Bridge = (typeof AndroidBridge !== 'undefined') ? AndroidBridge : null;
+  function brLog(tag, msg) {
+    try { if (Bridge && Bridge.log) Bridge.log(tag || 'js', String(msg)); } catch (e) {}
+    try { console.log('[' + (tag || 'js') + ']', msg); } catch (e) {}
+  }
+  function toast(msg) {
+    try { if (Bridge && Bridge.toast) Bridge.toast(String(msg)); } catch (e) {}
+  }
+  function finishAll(msg) {
+    if (Bridge && Bridge.finishAll) Bridge.finishAll(String(msg || ''));
+    else window.close();
+  }
+
+  // ============================================================
+  //  DOM
+  // ============================================================
+  var $status = document.getElementById('status');
+  var $qrImg  = document.getElementById('qrImg');
+  var $qrPh   = document.getElementById('qrPlaceholder');
+  var $btnGen = document.getElementById('btnGen');
+  var $btnCancel = document.getElementById('btnCancel');
+  var $log    = document.getElementById('log');
+  var $roleRequestBanner = document.getElementById('roleRequestBanner');
+
+  var $roleMask = document.getElementById('roleMask');
+  var $roleList = document.getElementById('roleList');
+  var $roleCount = document.getElementById('roleCount');
+  var $chkAll = document.getElementById('chkAll');
+  var $selInfo = document.getElementById('selInfo');
+  var $btnDlgOk = document.getElementById('btnDlgOk');
+  var $btnDlgCancel = document.getElementById('btnDlgCancel');
+
+  function setStatus(text, type) {
+    $status.textContent = text;
+    $status.className = 'status ' + (type || 'info');
+    brLog('status', text);
+  }
+  function showRoleRequest() {
+    if ($roleRequestBanner) $roleRequestBanner.classList.add('show');
+    setStatus('正在请求角色', 'info');
+  }
+  function hideRoleRequest() {
+    if ($roleRequestBanner) $roleRequestBanner.classList.remove('show');
+  }
+  function appendLog(text, kind) {
+    var p = document.createElement('div');
+    p.className = 'log-line' + (kind ? (' ' + kind) : '');
+    p.textContent = '[' + new Date().toLocaleTimeString() + '] ' + text;
+    $log.appendChild(p);
+    $log.classList.add('show');
+    $log.scrollTop = $log.scrollHeight;
+    // 同步到 chromium console（再被 logcat 捕获），方便排查
+    try {
+      var line = '[' + (kind || 'log') + '] ' + text;
+      if (kind === 'err') console.error(line);
+      else if (kind === 'warn') console.warn(line);
+      else console.log(line);
+    } catch (e) {}
+  }
+
+  // ============================================================
+  //  Base64 / ArrayBuffer 工具
+  // ============================================================
+  function abToB64(buf) {
+    var u8 = (buf instanceof Uint8Array) ? buf : new Uint8Array(buf);
+    var s = '';
+    var CHUNK = 0x8000;
+    for (var i = 0; i < u8.length; i += CHUNK) {
+      s += String.fromCharCode.apply(null, u8.subarray(i, i + CHUNK));
+    }
+    return btoa(s);
+  }
+  function b64ToU8(b64) {
+    var bin = atob(b64 || '');
+    var u8 = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    return u8;
+  }
+
+  // ============================================================
+  //  encodePayload (与 wxqrcode.vue 完全一致)
+  // ============================================================
+  var CIPHER_TABLE = "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";
+  var XOR_SHIFT = 1, SHUFFLE_TIMES = 6, STEP = 3;
+
+  function encodeBase64(text) {
+    if (!text) return null;
+    return btoa(unescape(encodeURIComponent(text)));
+  }
+  function rightSide(s) { return s.length % 2 ? null : s.substring(s.length / 2); }
+  function leftSide(s)  { return s.length % 2 ? null : s.substring(0, s.length / 2); }
+  function transCode(s, times) {
+    if (times <= 0) return s;
+    if (s.length % 2) return null;
+    return transCode(rightSide(s), times - 1) + transCode(leftSide(s), times - 1);
+  }
+  function getCodeKey(s, step) {
+    var out = '', n = Math.floor(s.length / step);
+    for (var i = 0; i < n; i++) out += s.charAt(i * step);
+    return out;
+  }
+  function dealWithString(src, key, shift) {
+    if (!src || !key) return null;
+    var out = '';
+    var idx = key.length >> shift;
+    for (var i = 0; i < src.length; i++) {
+      if (idx >= key.length) idx = 0;
+      out += String.fromCharCode(src.charCodeAt(i) ^ key.charCodeAt(idx));
+      idx++;
+    }
+    return out;
+  }
+  function encodePayload(text) {
+    var b64 = encodeBase64(text);
+    var shuffled = transCode(CIPHER_TABLE, SHUFFLE_TIMES);
+    var key = getCodeKey(shuffled, STEP);
+    var mid = dealWithString(b64, key, XOR_SHIFT);
+    return encodeBase64(mid);
+  }
+
+  // ============================================================
+  //  状态机
+  // ============================================================
+  var state = {
+    qrUUID: null,
+    pollTimer: null,
+    pollStart: 0,
+    pollTimeout: 120000, // 120s
+    busy: false,
+    // 选服上下文
+    nickname: '',
+    combUser: null,         // 登录返回的 combUser 原始对象
+    originalBinData: null,  // decMsg 解出的原始 bin 业务对象（含 platform/info/serverId 等）
+    roles: [],              // 排序后的角色数组
+  };
+
+  function resetQR() {
+    state.qrUUID = null;
+    if (state.pollTimer) { clearInterval(state.pollTimer); state.pollTimer = null; }
+    $qrImg.src = '';
+    $qrImg.style.display = 'none';
+    $qrPh.style.display = '';
+  }
+
+  // ============================================================
+  //  GET 二维码（GET 走 WebView 拦截 → OkHttp 反代）
+  // ============================================================
+  function fetchText(url, timeoutMs) {
+    return new Promise(function (resolve, reject) {
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', url, true);
+      xhr.timeout = timeoutMs || 15000;
+      xhr.onload = function () { resolve({ status: xhr.status, text: xhr.responseText }); };
+      xhr.onerror = function () { reject(new Error('网络错误')); };
+      xhr.ontimeout = function () { reject(new Error('请求超时')); };
+      xhr.send();
+    });
+  }
+
+  function tryGetWeixinQR() {
+    var url = '/api/weixin/connect/app/qrconnect'
+      + '?appid=wxfb0d5667e5cb1c44'
+      + '&bundleid=com.hortor.games.xyzw'
+      + '&scope=snsapi_base,snsapi_userinfo,snsapi_friend,snsapi_message'
+      + '&state=weixin';
+    return fetchText(url, 15000).then(function (resp) {
+      if (resp.status !== 200) throw new Error('HTTP ' + resp.status);
+      var html = resp.text || '';
+      var qrUrl = null;
+      try {
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var img = doc.querySelector('img.auth_qrcode');
+        if (img) qrUrl = img.getAttribute('src');
+      } catch (e) {}
+      if (!qrUrl) {
+        var m = html.match(/https?:\/\/[^"']*qrcode[^"']*/i);
+        if (m) qrUrl = m[0];
+      }
+      if (!qrUrl) {
+        var m2 = html.match(/\/connect\/qrcode\/[A-Za-z0-9_-]+/);
+        if (m2) qrUrl = 'https://open.weixin.qq.com' + m2[0];
+      }
+      if (!qrUrl) throw new Error('未找到二维码图片地址');
+      if (qrUrl.indexOf('//') === 0) qrUrl = 'https:' + qrUrl;
+      else if (qrUrl.charAt(0) === '/') qrUrl = 'https://open.weixin.qq.com' + qrUrl;
+      var tail = qrUrl.split('/').pop().split('?')[0];
+      state.qrUUID = tail;
+      $qrImg.src = qrUrl;
+      $qrImg.style.display = '';
+      $qrPh.style.display = 'none';
+      return true;
+    });
+  }
+
+  // ============================================================
+  //  轮询扫码状态
+  // ============================================================
+  function startPolling() {
+    state.pollStart = Date.now();
+    if (state.pollTimer) clearInterval(state.pollTimer);
+    state.pollTimer = setInterval(checkScanStatus, 1000);
+  }
+  function stopPolling() {
+    if (state.pollTimer) { clearInterval(state.pollTimer); state.pollTimer = null; }
+  }
+
+  function checkScanStatus() {
+    if (!state.qrUUID) return;
+    var elapsed = Date.now() - state.pollStart;
+    if (elapsed > state.pollTimeout) {
+      stopPolling(); resetQR();
+      setStatus('二维码已超时，请重新获取', 'err');
+      $btnGen.disabled = false;
+      return;
+    }
+    var url = '/api/weixin/connect/l/qrconnect?uuid=' + encodeURIComponent(state.qrUUID)
+      + '&f=url&_=' + Date.now();
+    fetchText(url, 5000).then(function (res) {
+      if (res.status !== 200) return;
+      var text = res.text || '';
+      if (text.indexOf('window.wx_errcode=405') !== -1) {
+        var codeMatch = text.match(/wx_redirecturl='[^']*code=([a-zA-Z0-9]+)/);
+        var nameMatch = text.match(/window\.wx_nickname\s*=\s*['"]([^'"]+)['"]/);
+        if (codeMatch) {
+          stopPolling();
+          var code = codeMatch[1];
+          var nickname = nameMatch ? nameMatch[1] : '';
+          setStatus('扫码成功，正在登录…' + (nickname ? ' (' + nickname + ')' : ''), 'ok');
+          handleScanSuccess(code, nickname);
+        }
+        return;
+      }
+      if (text.indexOf('window.wx_errcode=408') !== -1) {
+        stopPolling(); resetQR();
+        setStatus('二维码已过期，请重新生成', 'err');
+        $btnGen.disabled = false;
+        return;
+      }
+      var remain = Math.ceil((state.pollTimeout - elapsed) / 1000);
+      if (remain % 30 === 0) {
+        setStatus('请使用微信扫码登录', 'info');
+      }
+    }).catch(function () { /* 忽略瞬时错误 */ });
+  }
+
+  // ============================================================
+  //  POST 桥接（走 AndroidBridge.proxyPost）
+  // ============================================================
+  function proxyPost(url, headers, body, contentType) {
+    return new Promise(function (resolve, reject) {
+      try {
+        if (!Bridge || !Bridge.proxyPost) return reject(new Error('AndroidBridge.proxyPost 不可用'));
+        var bodyB64;
+        if (body == null) bodyB64 = '';
+        else if (typeof body === 'string') bodyB64 = btoa(unescape(encodeURIComponent(body)));
+        else if (body instanceof ArrayBuffer || body instanceof Uint8Array) bodyB64 = abToB64(body);
+        else bodyB64 = btoa(unescape(encodeURIComponent(String(body))));
+
+        var rawJson = Bridge.proxyPost(
+          url,
+          JSON.stringify(headers || {}),
+          bodyB64,
+          contentType || ''
+        );
+        var r = JSON.parse(rawJson || '{}');
+        if (r.status === 0) return reject(new Error(r.error || 'proxyPost failed'));
+        var u8 = b64ToU8(r.bodyBase64 || '');
+        var text = '';
+        try { text = new TextDecoder('utf-8').decode(u8); } catch (e) {
+          for (var i = 0; i < u8.length; i++) text += String.fromCharCode(u8[i]);
+        }
+        resolve({ status: r.status, statusText: r.statusText, headers: r.headers, text: text, raw: u8 });
+      } catch (e) { reject(e); }
+    });
+  }
+
+  // ============================================================
+  //  GameCrypto 解析/打包工具
+  // ============================================================
+  function parseBin(arrayBuffer) {
+    var GC = window.GameCrypto;
+    if (!GC || !GC.decMsg) throw new Error('GameCrypto.decMsg 不可用');
+    var msg = GC.decMsg(arrayBuffer, { decrypt: GC.lz4XorDecode, encrypt: GC.lz4XorEncode });
+    // 优先 rawData（解析后的业务对象）；为空则退回 _raw
+    var data = null;
+    try { data = msg.rawData; } catch (e) {}
+    if (!data && msg && msg._raw) data = Object.assign({}, msg._raw);
+    if (!data) throw new Error('bin 解析为空');
+    return data;
+  }
+  function encodeBin(obj) {
+    var GC = window.GameCrypto;
+    if (!GC || !GC.encMsg) throw new Error('GameCrypto.encMsg 不可用');
+    // ===== DEBUG: 验证 encrypt 函数到底是不是 lz4XorEncode =====
+    try {
+      appendLog('[encMsg.in] lz4XorEncode is fn=' + (typeof GC.lz4XorEncode)
+        + ' name=' + (GC.lz4XorEncode && GC.lz4XorEncode.name)
+        + ' obj.keys=' + Object.keys(obj).join(','));
+    } catch (e) {}
+    var buf = GC.encMsg(obj, { decrypt: GC.lz4XorDecode, encrypt: GC.lz4XorEncode });
+    // ===== DEBUG: 看 encMsg 返回的原始 buf 头部，确认是否经过 lz4XorEncode 头改写（应为 0x70 0x6c）=====
+    try {
+      var dbgU8 = (buf instanceof Uint8Array) ? buf : new Uint8Array(buf);
+      appendLog('[encMsg.out] type=' + (buf instanceof Uint8Array ? 'Uint8Array' : 'ArrayBuffer')
+        + ' len=' + dbgU8.length
+        + ' bufBL=' + (buf.buffer ? buf.buffer.byteLength : (buf.byteLength || -1))
+        + ' head=' + u8ToHex(dbgU8, 16)
+        + ' (want头2字节: 70 6c)');
+    } catch (e) {}
+    // ⚠️ 关键：encMsg 内部 DataWriter.getBytes() 默认返回 subarray，
+    //   也就是底层大 ArrayBuffer 的视图（buf.buffer.byteLength 远大于 buf.length）。
+    //   如果直接把 buf.buffer 给 proxyPost / base64 编码，会带上尾部一堆 0 字节，
+    //   服务端收到的 ProtoMsg 后面多了若干 0，业务字段错位 → 返回 code=200020 "出了点小问题"。
+    //   vue 那边的写法是 `new Uint8Array(encryptedBuffer)`，会自动 copy 出一份独立 buffer，
+    //   恰好绕过了这个坑。我们这里手动复制一份，使 .buffer 正好等于 byteLength。
+    var src = (buf instanceof Uint8Array) ? buf : new Uint8Array(buf);
+    var out = new Uint8Array(src.length);
+    out.set(src);
+    return out;
+  }
+
+  /**
+   * 自动检测加密方式的解密器（对应 bonProtocol.js 中的 passthrough）：
+   *   - 0x70 0x6c ("pl") -> lx (lz4XorDecode)
+   *   - 0x70 0x78 ("px") -> x  (xorDecode)
+   *   - 0x70 0x74 ("pt") -> xtm
+   * encrypt 默认走 x（与 vue passthrough 一致）。
+   */
+  function getAutoEnc() {
+    var GC = window.GameCrypto;
+    return {
+      encrypt: function (e) { return GC.xorEncode(e); },
+      decrypt: function (e) {
+        if (e.length > 4 && e[0] === 0x70 && e[1] === 0x6c) return GC.lz4XorDecode(e);
+        if (e.length > 4 && e[0] === 0x70 && e[1] === 0x78) return GC.xorDecode(e);
+        if (e.length > 3 && e[0] === 0x70 && e[1] === 0x74 && GC.getEncryptor) {
+          var xtm = GC.getEncryptor('xtm');
+          if (xtm && xtm.decrypt) return xtm.decrypt(e);
+        }
+        return e; // 兜底：原样返回
+      }
+    };
+  }
+
+  // ============================================================
+  //  服务器列表请求 + 解析
+  // ============================================================
+  function u8ToHex(u8, n) {
+    n = Math.min(n || 32, u8.length);
+    var s = '';
+    for (var i = 0; i < n; i++) {
+      var h = u8[i].toString(16);
+      if (h.length < 2) h = '0' + h;
+      s += h;
+    }
+    return s;
+  }
+  function getServerList(arrBuf) {
+    return proxyPost(
+      '/api/xxz/login/serverlist?_seq=3',
+      { 'Accept': '*/*' },
+      arrBuf,
+      'application/octet-stream'
+    ).then(function (resp) {
+      // —— 调试日志 ——
+      appendLog('serverlist HTTP ' + resp.status + ' (' + (resp.statusText || '') + ')', resp.status === 200 ? 'ok' : 'err');
+      var raw = resp.raw || new Uint8Array(0);
+      appendLog('serverlist body bytes=' + raw.length + ', head=' + u8ToHex(raw, 32));
+      // 如果像文本（HTML/JSON），把开头 200 字节打出来
+      var looksText = true;
+      for (var i = 0; i < Math.min(raw.length, 64); i++) {
+        var c = raw[i];
+        if (c === 9 || c === 10 || c === 13 || (c >= 32 && c <= 126)) continue;
+        looksText = false; break;
+      }
+      if (looksText && raw.length > 0) {
+        appendLog('serverlist 响应像文本：' + (resp.text || '').slice(0, 200), 'warn');
+      }
+      if (resp.status !== 200) throw new Error('serverlist HTTP ' + resp.status);
+      if (raw.length === 0) throw new Error('serverlist 响应为空');
+
+      var GC = window.GameCrypto;
+      var msg;
+      // 服务器返回的加密方式不固定（lx/x/xtm 都可能），用自动检测解密器
+      var autoEnc = getAutoEnc();
+      try {
+        // 传 Uint8Array 而不是 .buffer，避免 buffer 偏移
+        msg = GC.decMsg(raw, autoEnc);
+      } catch (e) {
+        appendLog('decMsg 抛错: ' + e.message + '（head=' + u8ToHex(raw, 8) + '）', 'err');
+        // 兜底：再分别用 lx / x 各试一次，便于诊断
+        try {
+          var msg2 = GC.decMsg(raw.slice(), { decrypt: GC.lz4XorDecode, encrypt: GC.lz4XorEncode });
+          appendLog('lx 强解结果 keys=' + (msg2 && msg2._raw ? Object.keys(msg2._raw).join(',') : 'null'), 'warn');
+        } catch (e2) { appendLog('lx 强解失败: ' + e2.message, 'warn'); }
+        try {
+          var msg3 = GC.decMsg(raw.slice(), { decrypt: GC.xorDecode, encrypt: GC.xorEncode });
+          appendLog('x 强解结果 keys=' + (msg3 && msg3._raw ? Object.keys(msg3._raw).join(',') : 'null'), 'warn');
+        } catch (e3) { appendLog('x 强解失败: ' + e3.message, 'warn'); }
+        throw new Error('serverlist decMsg 失败：' + e.message);
+      }
+      if (!msg) throw new Error('serverlist decMsg 返回 null');
+      var data = null;
+      try { data = msg.rawData; } catch (e) { appendLog('rawData 取值失败: ' + e.message, 'warn'); }
+      if (!data && msg && msg._raw) data = msg._raw;
+      if (!data) {
+        appendLog('serverlist 解析后 data 为空，msg keys=' + (msg ? Object.keys(msg).join(',') : 'null'), 'err');
+        return [];
+      }
+      appendLog('serverlist data keys=' + Object.keys(data).join(','));
+      // 打印各顶层字段的类型/大小，避免 JSON.stringify 巨型对象卡死
+      try {
+        var info = [];
+        Object.keys(data).forEach(function (k) {
+          var v = data[k];
+          var t = (v && v.constructor && v.constructor.name) || typeof v;
+          var sz = '';
+          if (v == null) sz = 'null';
+          else if (v instanceof Uint8Array || v instanceof ArrayBuffer) sz = 'bytes=' + (v.byteLength || v.length || 0);
+          else if (v instanceof Map) sz = 'mapSize=' + v.size;
+          else if (Array.isArray(v)) sz = 'arrLen=' + v.length;
+          else if (typeof v === 'object') {
+            try { sz = 'objKeys=' + Object.keys(v).length; } catch (e) { sz = 'objKeys=?'; }
+          } else sz = String(v).slice(0, 80);
+          info.push(k + ':' + t + '(' + sz + ')');
+        });
+        appendLog('serverlist data fields=' + info.join(' | '));
+      } catch (e) { appendLog('dump data 失败: ' + e.message, 'warn'); }
+
+      // 服务端 code != 0 时是错误响应，没有 body/roles
+      if (data.code && data.code !== 0) {
+        appendLog('服务端错误 code=' + data.code + ' error=' + (data.error || ''), 'err');
+        throw new Error('serverlist 失败 code=' + data.code + ' ' + (data.error || ''));
+      }
+
+      // body 还在的话再 BON 解一次拿 roles（vue 里 msg.getData() === msg.rawData，
+      // ProtoMsg.rawData 内部就是 bon.decode(body)；我们这里 msg.rawData 已经做过了，
+      // 但万一服务器 schema 不同，data 本身可能就是顶层 cmd/body 结构，roles 在 body 里）
+      if (!data.roles && data.body && (data.body instanceof Uint8Array || data.body instanceof ArrayBuffer)) {
+        try {
+          var inner = GC.bon ? GC.bon.decode(data.body instanceof Uint8Array ? data.body : new Uint8Array(data.body)) : null;
+          if (inner) {
+            appendLog('inner body keys=' + Object.keys(inner).join(','));
+            if (inner.roles) data = inner;
+          }
+        } catch (e) { appendLog('inner body decode 失败: ' + e.message, 'warn'); }
+      }
+
+      if (!data.roles) {
+        appendLog('serverlist 响应缺少 roles 字段', 'err');
+        return [];
+      }
+      // roles 可能是普通对象也可能是 Map
+      var rolesObj = data.roles;
+      var rolesType = (rolesObj && rolesObj.constructor && rolesObj.constructor.name) || typeof rolesObj;
+      appendLog('roles type=' + rolesType
+        + (rolesObj instanceof Map ? ' mapSize=' + rolesObj.size : '')
+        + (Array.isArray(rolesObj) ? ' arrLen=' + rolesObj.length : '')
+        + (rolesObj && typeof rolesObj === 'object' && !(rolesObj instanceof Map) && !Array.isArray(rolesObj) ? ' objKeys=' + Object.keys(rolesObj).length : ''));
+      var arr = [];
+      try {
+        if (rolesObj instanceof Map) {
+          rolesObj.forEach(function (v) { arr.push(v); });
+        } else if (Array.isArray(rolesObj)) {
+          for (var i = 0; i < rolesObj.length; i++) arr.push(rolesObj[i]);
+        } else if (rolesObj && typeof rolesObj === 'object') {
+          var keys = Object.keys(rolesObj);
+          for (var i = 0; i < keys.length; i++) arr.push(rolesObj[keys[i]]);
+        }
+      } catch (e) {
+        appendLog('roles 遍历失败: ' + e.message, 'err');
+      }
+      appendLog('roles 收集完成，数量=' + arr.length);
+      // 打印第 1 个 role 的字段，便于排查结构
+      if (arr.length > 0) {
+        try {
+          var r0 = arr[0];
+          var rk = r0 && typeof r0 === 'object' ? Object.keys(r0).slice(0, 30).join(',') : String(r0);
+          appendLog('role[0] keys=' + rk);
+        } catch (e) {}
+      }
+      // 按战力降序
+      try {
+        arr.sort(function (a, b) { return getRolePower(b) - getRolePower(a); });
+      } catch (e) {
+        appendLog('roles 排序失败: ' + e.message, 'warn');
+      }
+      return arr;
+    });
+  }
+
+  // ============================================================
+  //  弹窗：选择角色
+  // ============================================================
+  function formatServer(serverIdRaw) {
+    var rawServerId = Number(serverIdRaw) || 0;
+    var sid = rawServerId;
+    var roleIndex = 0;
+    if (sid >= 2000000) { roleIndex = 2; sid -= 2000000; }
+    else if (sid >= 1000000) { roleIndex = 1; sid -= 1000000; }
+    var displayServerId = sid > 1000 ? sid - 27 : sid;
+    return { rawServerId: rawServerId, baseServerId: sid, serverId: displayServerId, roleIndex: roleIndex };
+  }
+
+  function getRoleServerId(role) {
+    return role && (role.serverId || role.sid || role.server || 0);
+  }
+
+  function getRolePower(role) {
+    return Number(role && (role.power || role.fightPower || role.combatPower || role.zhanli || role.fighting)) || 0;
+  }
+
+  function formatPower(value) {
+    var n = Number(value) || 0;
+    function trim(v) { return v.toFixed(2).replace(/\.?0+$/, ''); }
+    if (Math.abs(n) >= 100000000) return trim(n / 100000000) + '亿';
+    if (Math.abs(n) >= 10000) return trim(n / 10000) + '万';
+    return String(n);
+  }
+
+  function buildFileName(role, nickname) {
+    var roleName = role.name || ('角色_' + role.roleId);
+    var serverInfo = formatServer(getRoleServerId(role));
+    var fname = roleName + '-区服' + (serverInfo.serverId || serverInfo.rawServerId || 0);
+    return fname.replace(/[\\/:*?"<>|]+/g, '_');
+  }
+
+  function renderRoleList(roles) {
+    $roleList.innerHTML = '';
+    $roleCount.textContent = '共 ' + roles.length + ' 个';
+    if (roles.length === 0) {
+      var empty = document.createElement('div');
+      empty.className = 'empty';
+      empty.textContent = '没有获取到任何角色，请关闭重试。';
+      $roleList.appendChild(empty);
+      $btnDlgOk.disabled = true;
+      return;
+    }
+    $btnDlgOk.disabled = false;
+    roles.forEach(function (role, idx) {
+      var item = document.createElement('label');
+      item.className = 'role-item';
+
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.dataset.idx = String(idx);
+      cb.addEventListener('change', function () {
+        item.classList.toggle('checked', cb.checked);
+        updateSelInfo();
+      });
+
+      var meta = document.createElement('div');
+      meta.className = 'meta';
+
+      var nm = document.createElement('div');
+      nm.className = 'name';
+      nm.textContent = role.name || ('角色_' + role.roleId);
+
+      var inf = document.createElement('div');
+      inf.className = 'info';
+      var b1 = document.createElement('span'); b1.className = 'badge';
+      var serverInfo = formatServer(getRoleServerId(role));
+      b1.textContent = '区服 ' + (serverInfo.serverId || '?');
+      var pwr = document.createElement('span'); pwr.className = 'pwr';
+      pwr.textContent = '战力 ' + formatPower(getRolePower(role));
+      var rid = document.createElement('span');
+      rid.className = 'rid';
+      rid.textContent = 'ID ' + role.roleId;
+      inf.appendChild(b1);
+      inf.appendChild(pwr);
+      inf.appendChild(rid);
+
+      meta.appendChild(nm);
+      meta.appendChild(inf);
+
+      item.appendChild(cb);
+      item.appendChild(meta);
+      $roleList.appendChild(item);
+    });
+    updateSelInfo();
+  }
+
+  function getCheckedIndices() {
+    var out = [];
+    var cbs = $roleList.querySelectorAll('input[type=checkbox]');
+    for (var i = 0; i < cbs.length; i++) {
+      if (cbs[i].checked) out.push(Number(cbs[i].dataset.idx));
+    }
+    return out;
+  }
+
+  function updateSelInfo() {
+    var n = getCheckedIndices().length;
+    var total = state.roles.length;
+    $selInfo.textContent = '已选 ' + n + ' / ' + total;
+    $chkAll.checked = (n > 0 && n === total);
+    $chkAll.indeterminate = (n > 0 && n < total);
+    $btnDlgOk.disabled = (n === 0);
+  }
+
+  $chkAll.addEventListener('change', function () {
+    var checked = $chkAll.checked;
+    var cbs = $roleList.querySelectorAll('input[type=checkbox]');
+    for (var i = 0; i < cbs.length; i++) {
+      cbs[i].checked = checked;
+      cbs[i].closest('.role-item').classList.toggle('checked', checked);
+    }
+    updateSelInfo();
+  });
+
+  function showRoleDialog(roles) {
+    hideRoleRequest();
+    state.roles = roles;
+    renderRoleList(roles);
+    $roleMask.classList.add('show');
+  }
+  function hideRoleDialog() {
+    $roleMask.classList.remove('show');
+  }
+
+  $btnDlgCancel.addEventListener('click', function () {
+    hideRoleDialog();
+    state.busy = false;
+    $btnGen.disabled = false;
+    setStatus('已取消导入', 'warn');
+  });
+
+  $btnDlgOk.addEventListener('click', function () {
+    var picks = getCheckedIndices();
+    if (picks.length === 0) { toast('请至少选择一个角色'); return; }
+    $btnDlgOk.disabled = true;
+    $btnDlgCancel.disabled = true;
+    importPickedRoles(picks).then(function (result) {
+      hideRoleDialog();
+      $btnDlgCancel.disabled = false;
+      var ok = result.ok, fail = result.fail;
+      var msg = '导入完成：成功 ' + ok + ' / 失败 ' + fail;
+      setStatus(msg, fail > 0 ? 'warn' : 'ok');
+      toast(msg);
+      setTimeout(function () { finishAll(msg); }, 700);
+    }).catch(function (e) {
+      $btnDlgOk.disabled = false;
+      $btnDlgCancel.disabled = false;
+      setStatus('导入失败：' + e.message, 'err');
+      appendLog('ERR ' + e.message, 'err');
+    });
+  });
+
+  // ============================================================
+  //  扫码成功 → 登录 → 拉服务器列表 → 弹窗 → 多角色导入
+  // ============================================================
+  function handleScanSuccess(code, nickname) {
+    if (state.busy) return;
+    state.busy = true;
+    state.nickname = nickname || '';
+    setStatus('正在与服务器换取账号信息…', 'info');
+
+    var payload = {
+      gameId: 'xyzwapp',
+      code: code,
+      gameTp: 'app',
+      sysInfo: '{"system":"Android","hortorSDKVersion":"4.0.6-cn","model":"22081212C","brand":"Redmi"}',
+      channel: 'android',
+      appFrom: 'com.tencent.mm',
+      noLogin: '2',
+      distinctId: 'DID-a38175b7-14ce-4b36-aa89-3e092ea03ea6',
+      state: 'hortor',
+      packageName: 'com.hortor.games.xyzw',
+      tp: 'app-we',
+      signPrint: 'E6:F7:FE:A9:EC:8E:24:D0:4F:2A:32:50:28:78:E1:C5:5E:70:81:13'
+    };
+    var rawJson = JSON.stringify(payload);
+    var encoded;
+    try { encoded = encodePayload(rawJson); }
+    catch (e) {
+      state.busy = false;
+      setStatus('登录请求加密失败：' + e.message, 'err');
+      $btnGen.disabled = false;
+      return;
+    }
+
+    var loginUrl = '/api/hortor/comb-login-server/api/v1/login'
+      + '?gameId=xyzwapp'
+      + '&timestamp=' + Date.now()
+      + '&version=android-4.2.1-cn-release'
+      + '&cryptVersion=1.1.0'
+      + '&gameTp=app&system=android'
+      + '&deviceUniqueId=DID-0e782e88-2f3b-4f5b-9020-47f5e5a5a026'
+      + '&packageName=com.hortor.games.xyzw';
+
+    proxyPost(loginUrl, { 'Accept': '*/*', 'Origin': 'https://open.weixin.qq.com', 'Referer': 'https://open.weixin.qq.com/' }, encoded, 'text/plain; charset=utf-8')
+      .then(function (resp) {
+        if (resp.status !== 200) throw new Error('登录 HTTP ' + resp.status);
+        var json;
+        try { json = JSON.parse(resp.text); }
+        catch (e) { throw new Error('登录响应不是 JSON: ' + (resp.text || '').slice(0, 80)); }
+        if (!json || !json.meta || json.meta.errCode !== 0) {
+          throw new Error('登录失败：' + (json && json.meta && json.meta.errMsg || 'unknown'));
+        }
+        var combUser = json.data && json.data.combUser;
+        if (!combUser) throw new Error('登录响应结构异常：缺少 combUser');
+        appendLog('combUser 已获取 type=' + (typeof combUser) + ' len=' + (combUser && combUser.length) , 'ok');
+        // ===== DEBUG: 把 combUser 字符串原文打出来（看是否能 JSON.parse 出 encryptCombUser/sign/timestamp）=====
+        try {
+          if (typeof combUser === 'string') {
+            var p = JSON.parse(combUser);
+            appendLog('[combUser parsed] keys=' + Object.keys(p).join(',')
+              + ' timestamp=' + p.timestamp
+              + ' sign=' + p.sign
+              + ' encLen=' + (p.encryptCombUser && p.encryptCombUser.length));
+          } else {
+            appendLog('[combUser] 不是 string，是 ' + typeof combUser + '：' + JSON.stringify(combUser).slice(0, 200), 'warn');
+          }
+        } catch (e) { appendLog('[combUser] 解析失败: ' + e.message, 'warn'); }
+        state.combUser = combUser;
+
+        // 生成原始 bin
+        // 注意：vue 源码里写的是 serverId:null、且没有 deviceUniqueId 字段，
+        //   但抓真实流量 payload 后发现实际请求里 serverId=0、且必须带 deviceUniqueId:""。
+        //   服务端对 serverId 类型敏感（BON null vs number 是两种 tag），
+        //   传 null 会被判错走到 code=200020 "出了点小问题"。
+        //   所以这里以真实流量为准：serverId=0，deviceUniqueId=""。
+        var binData = {
+          platform: 'hortor',
+          platformExt: 'mix',
+          info: combUser,
+          serverId: 0,
+          scene: 0,
+          referrerInfo: '',
+          deviceUniqueId: ''
+        };
+        // ===== DEBUG: 打印加密前的完整明文 binData，便于和真实流量逐字段对照 =====
+        try {
+          var dbgPlain = {
+            platform: binData.platform,
+            platformExt: binData.platformExt,
+            // info 太长（>1KB），分段打
+            info: typeof binData.info === 'string' ? ('<string len=' + binData.info.length + '>') : ('<' + (typeof binData.info) + '>'),
+            serverId: binData.serverId,
+            scene: binData.scene,
+            referrerInfo: binData.referrerInfo,
+            deviceUniqueId: binData.deviceUniqueId
+          };
+          appendLog('[plain] binData=' + JSON.stringify(dbgPlain));
+          if (typeof binData.info === 'string') {
+            // 把 info 完整打出来（多行也认了，方便比对）
+            var INFO = binData.info;
+            var CHUNK = 800;
+            for (var oi = 0; oi < INFO.length; oi += CHUNK) {
+              appendLog('[plain.info ' + oi + '..' + Math.min(INFO.length, oi + CHUNK) + '] ' + INFO.substr(oi, CHUNK));
+            }
+          }
+        } catch (e) { appendLog('[plain] dump 失败: ' + e.message, 'warn'); }
+        var u8 = encodeBin(binData);
+        appendLog('原始 bin 生成成功，size=' + u8.length + ' head=' + u8ToHex(u8, 32) + ' tail=' + u8ToHex(u8.subarray(Math.max(0, u8.length - 16)), 16), 'ok');
+
+        // ⚠️ 重要：state.originalBinData 直接用手头的 binData，不要再 parseBin(u8.buffer)！
+        //    parseBin → decMsg → lz4XorDecode(V) 是 in-place 修改 buffer 的，
+        //    会把 u8.buffer 头 4 字节从 70 6c xx xx 改回 04 22 4d 18，
+        //    后续 getServerList(u8.buffer) 就发的是已被破坏的明文 LZ4，
+        //    服务端直接拒绝 → code=200020 "出了点小问题"。
+        //    binData 本身就是这次构造时的源对象，字段完全等价。
+        state.originalBinData = binData;
+        appendLog('originalBinData 已就绪（直接复用源对象，避免破坏 u8.buffer）', 'ok');
+
+        // 拉服务器列表
+        showRoleRequest();
+        return getServerList(u8.buffer);
+      })
+      .then(function (roles) {
+        if (!roles || roles.length === 0) {
+          throw new Error('没有获取到任何角色');
+        }
+        hideRoleRequest();
+        appendLog('服务器列表获取成功，角色数=' + roles.length, 'ok');
+        setStatus('请选择要导入的角色（' + roles.length + ' 个）', 'ok');
+        showRoleDialog(roles);
+      })
+      .catch(function (e) {
+        hideRoleRequest();
+        state.busy = false;
+        $btnGen.disabled = false;
+        setStatus('处理失败：' + e.message, 'err');
+        appendLog('ERR ' + e.message, 'err');
+        brLog('err', e.message);
+      });
+  }
+
+  // ============================================================
+  //  对每个勾选角色生成 bin 并保存
+  // ============================================================
+  function importPickedRoles(indices) {
+    return new Promise(function (resolve) {
+      var ok = 0, fail = 0;
+      var done = 0;
+      var total = indices.length;
+      setStatus('正在导入 0 / ' + total + ' …', 'info');
+
+      function next(i) {
+        if (i >= total) {
+          resolve({ ok: ok, fail: fail });
+          return;
+        }
+        var role = state.roles[indices[i]];
+        try {
+          // 浅拷贝原 bin 数据，替换 serverId
+          var newData = Object.assign({}, state.originalBinData);
+          newData.serverId = getRoleServerId(role);
+          var u8 = encodeBin(newData);
+          var fileName = buildFileName(role, state.nickname);
+          var b64 = abToB64(u8);
+          var saveResStr = Bridge.saveBin(fileName, b64);
+          var saveRes;
+          try { saveRes = JSON.parse(saveResStr || '{}'); } catch (e) { saveRes = {}; }
+          if (saveRes.ok) {
+            ok++;
+            appendLog('√ ' + fileName, 'ok');
+          } else {
+            fail++;
+            appendLog('× ' + fileName + ' :: ' + (saveRes.error || saveResStr), 'err');
+          }
+        } catch (e) {
+          fail++;
+          appendLog('× role[' + indices[i] + ']: ' + e.message, 'err');
+        }
+        done++;
+        setStatus('正在导入 ' + done + ' / ' + total + ' …', 'info');
+        // 给 UI 留一帧
+        setTimeout(function () { next(i + 1); }, 0);
+      }
+      next(0);
+    });
+  }
+
+  // ============================================================
+  //  按钮事件
+  // ============================================================
+  $btnGen.addEventListener('click', function () {
+    if (state.busy) return;
+    $btnGen.disabled = true;
+    setStatus('正在获取二维码…', 'info');
+    resetQR();
+    tryGetWeixinQR().then(function () {
+      setStatus('请使用微信扫码登录', 'info');
+      $btnGen.disabled = false;
+      $btnGen.textContent = '重新获取';
+      startPolling();
+    }).catch(function (e) {
+      $btnGen.disabled = false;
+      setStatus('二维码获取失败：' + e.message, 'err');
+      appendLog('ERR ' + e.message, 'err');
+    });
+  });
+
+  $btnCancel.addEventListener('click', function () {
+    stopPolling();
+    finishAll('');
+  });
+
+  // 启动自检
+  window.addEventListener('load', function () {
+    if (!window.GameCrypto || !window.GameCrypto.encMsg) {
+      setStatus('警告：lz4_encryptor.js 未加载，bin 生成将失败', 'warn');
+      appendLog('window.GameCrypto missing', 'err');
+    } else {
+      appendLog('GameCrypto loaded: ' + Object.keys(window.GameCrypto).join(','), 'ok');
+    }
+  });
+})();
+</script>
+</body>
+</html>

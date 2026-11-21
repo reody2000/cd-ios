@@ -1,0 +1,1060 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>手机号登录</title>
+<style>
+  :root {
+    --bg: #1a1a2e;
+    --bg2: #232347;
+    --bg3: #2c2c52;
+    --fg: #e6e6f5;
+    --muted: #9aa0c0;
+    --accent: #5ab7ff;
+    --ok: #2f80d6;
+    --warn: #f0b73d;
+    --err: #ff6b6b;
+    --border: rgba(255,255,255,0.08);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; width: 100%; min-height: 100vh;
+    background: linear-gradient(180deg, #15152b 0%, #1a1a2e 100%);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 14px;
+    overflow-x: hidden;
+  }
+  .wrap {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 24px 20px 32px;
+  }
+  h1 {
+    font-size: 18px; font-weight: 600; margin: 0 0 8px;
+    text-align: center; letter-spacing: 0.5px;
+  }
+  .sub { text-align: center; color: var(--muted); font-size: 12px; margin-bottom: 20px; }
+  .status {
+    margin: 12px 0 16px; padding: 10px 14px; border-radius: 8px;
+    background: var(--bg2); border: 1px solid var(--border);
+    font-size: 13px; text-align: center; min-height: 38px;
+    display: flex; align-items: center; justify-content: center;
+    word-break: break-all;
+  }
+  .status.info  { color: var(--accent); }
+  .status.ok    { color: var(--ok); }
+  .status.warn  { color: var(--warn); }
+  .status.err   { color: var(--err); }
+  .btn-row { display: flex; gap: 10px; margin-top: 6px; }
+  .btn {
+    flex: 1; padding: 12px 14px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--bg2);
+    color: var(--fg); font-size: 14px; font-weight: 500;
+    cursor: pointer; transition: opacity .15s, transform .05s;
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn[disabled] { opacity: .45; pointer-events: none; }
+  .btn.primary {
+    background: linear-gradient(135deg,#3d7bff 0%,#5ab7ff 100%);
+    border-color: transparent; color: #fff;
+  }
+  .log {
+    margin-top: 18px; padding: 10px 12px;
+    background: rgba(0,0,0,0.3); border-radius: 8px;
+    font-size: 11px; line-height: 1.5; color: var(--muted);
+    max-height: 140px; overflow-y: auto; word-break: break-all;
+    white-space: pre-wrap; border: 1px solid var(--border); display: none;
+  }
+  .log.show { display: block; }
+  .log-line { margin: 0 0 2px; }
+  .log-line.err { color: var(--err); }
+  .log-line.ok  { color: var(--ok); }
+  .input-field {
+    width: 100%; padding: 12px 14px; border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: #232347; color: #e6e6f5; font-size: 15px; outline: none;
+  }
+  .input-field:focus { border-color: var(--accent); }
+  .phone-row { display: flex; gap: 10px; margin-bottom: 12px; }
+  .phone-row .input-field { flex: 1; }
+  .phone-row .btn { flex: none; width: 100px; padding: 12px 8px; font-size: 13px; }
+  .path-tip {
+    margin-top: 14px; padding: 10px 12px;
+    background: rgba(0,0,0,0.22); border: 1px dashed var(--border);
+    border-radius: 8px; font-size: 11px; line-height: 1.6; color: var(--muted);
+  }
+  .path-tip code {
+    padding: 1px 5px; background: rgba(255,255,255,0.06);
+    border-radius: 4px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11px;
+  }
+  /* 角色选择 dialog */
+  .mask { position: fixed; inset: 0; background: rgba(0,0,0,0.62); display: none; align-items: flex-end; justify-content: center; z-index: 100; }
+  .mask.show { display: flex; }
+  .dialog { width: 100%; max-width: 480px; background: var(--bg); border-radius: 16px 16px 0 0; border-top: 1px solid var(--border); box-shadow: 0 -8px 32px rgba(0,0,0,0.5); max-height: 86vh; display: flex; flex-direction: column; animation: slideUp 0.22s ease-out; }
+  @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  .dialog .head { padding: 14px 16px 10px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+  .dialog .head .title { font-size: 15px; font-weight: 600; }
+  .dialog .head .count { font-size: 12px; color: var(--muted); margin-left: 8px; }
+  .dialog .toolbar { padding: 10px 16px; display: flex; gap: 10px; align-items: center; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .dialog .toolbar .selectAll { display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; font-size: 13px; }
+  .dialog .toolbar .selected-info { margin-left: auto; font-size: 12px; color: var(--muted); }
+  .role-list { flex: 1; overflow-y: auto; padding: 8px 16px; }
+  .role-item { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); cursor: pointer; }
+  .role-item .name { font-size: 14px; font-weight: 500; }
+  .role-item .meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .dialog .foot { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; gap: 10px; flex-shrink: 0; }
+  html, body {
+    background: transparent !important;
+    color: #30333a;
+    overflow: hidden;
+  }
+  body {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .wrap {
+    width: min(380px, calc(100vw - 52px));
+    margin: 0;
+    padding: 28px 28px 24px;
+    background: #fff;
+    color: #30333a;
+    border-radius: 4px;
+    box-shadow: 0 16px 46px rgba(0,0,0,0.28);
+  }
+  h1 {
+    text-align: left;
+    color: #30333a;
+    font-size: 22px;
+    margin-bottom: 22px;
+  }
+  .sub, .path-tip, .log { display: none !important; }
+  .status {
+    background: #f6f7f9;
+    border-color: #edf0f4;
+    color: #8b9099;
+    margin: 0 0 16px;
+    min-height: 34px;
+  }
+  .status.ok { color: #2f80d6; }
+  .status.err { color: #d94b4b; }
+  .status.warn { color: #bd8a18; }
+  .input-field {
+    background: #fafafa;
+    color: #30333a;
+    border-color: #e1e4ea;
+    border-radius: 6px;
+    font-size: 16px;
+  }
+  .input-field::placeholder { color: #a7abb3; }
+  .phone-row .btn, .btn.primary {
+    background: #4285dc;
+    color: #fff;
+    border-color: transparent;
+    border-radius: 0;
+  }
+  .btn-row { margin-top: 36px; }
+  .btn-row .btn {
+    background: transparent;
+    border: 0;
+    color: #9aa0a8;
+    font-size: 18px;
+  }
+  .btn-row .btn.primary {
+    background: transparent;
+    color: #3579bd;
+  }
+  .mask { background: rgba(0,0,0,0.48); }
+  .dialog {
+    background: #fff;
+    color: #30333a;
+    border: 0;
+    box-shadow: 0 -8px 30px rgba(0,0,0,0.18);
+  }
+  .dialog .head, .dialog .toolbar, .dialog .foot {
+    border-color: #edf0f4;
+  }
+  .role-item { border-color: #edf0f4; }
+  .role-item .name { color: #30333a; }
+
+  /* Compact native-shell style. */
+  body, input, button {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  .wrap {
+    width: min(330px, calc(100vw - 52px));
+    padding: 20px 18px 18px;
+    border-radius: 12px;
+  }
+  h1 {
+    font-size: 14px;
+    line-height: 22px;
+    font-weight: 600;
+    margin-bottom: 14px;
+    color: #191c22;
+    letter-spacing: 0;
+  }
+  .status {
+    min-height: 30px;
+    padding: 7px 10px;
+    margin: 0 0 12px;
+    border-radius: 8px;
+    font-size: 11px;
+    line-height: 16px;
+    color: #7c8491;
+  }
+  .input-field {
+    min-height: 42px;
+    padding: 0 11px;
+    border-radius: 8px;
+    font-size: 12px;
+    color: #20242b;
+  }
+  .phone-row {
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .phone-row .btn {
+    width: 82px;
+    min-height: 42px;
+    padding: 0 6px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .btn-row {
+    gap: 8px;
+    margin-top: 22px;
+  }
+  .btn-row .btn {
+    min-height: 38px;
+    padding: 0 8px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .btn-row .btn.primary {
+    color: #2f80d6;
+  }
+  .dialog {
+    border-radius: 16px 16px 0 0;
+  }
+  .dialog .head {
+    padding: 12px 14px 8px;
+  }
+  .dialog .head .title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #191c22;
+  }
+  .dialog .head .count {
+    font-size: 10px;
+    color: #7c8491;
+  }
+  .dialog .toolbar {
+    padding: 8px 14px;
+  }
+  .dialog .toolbar .selectAll {
+    font-size: 11px;
+    color: #30333a;
+  }
+  .dialog .toolbar .selected-info {
+    font-size: 10px;
+    color: #2f80d6;
+  }
+  .role-list {
+    padding: 6px 14px;
+  }
+  .role-item {
+    gap: 8px;
+    padding: 8px 0;
+  }
+  .role-item .name {
+    font-size: 12px;
+    font-weight: 600;
+    color: #20242b;
+  }
+  .role-item .meta,
+  .role-item .info {
+    font-size: 10px;
+    color: #7c8491;
+  }
+  .dialog .foot {
+    padding: 10px 14px calc(env(safe-area-inset-bottom) + 10px);
+  }
+  .dialog .foot .btn {
+    min-height: 36px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+  }
+  .dialog {
+    background: #f6f7f9;
+  }
+  .dialog .head,
+  .dialog .toolbar,
+  .dialog .foot {
+    background: #fff;
+  }
+  .role-list {
+    background: #f6f7f9;
+    padding: 8px 12px 10px;
+  }
+  .role-item {
+    align-items: center;
+    gap: 9px;
+    padding: 10px 12px;
+    margin: 7px 0;
+    border: 1px solid #edf0f4;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 1px 4px rgba(24, 32, 42, 0.08);
+  }
+  .role-item.checked {
+    border-color: #2f80d6;
+    background: #f7fbff;
+  }
+  .role-item input[type=checkbox] {
+    width: 14px;
+    height: 14px;
+    accent-color: #2f80d6;
+    flex-shrink: 0;
+  }
+  .role-item .meta {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .role-item .name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .role-item .info {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    line-height: 16px;
+  }
+  .role-item .info .badge {
+    padding: 1px 6px;
+    border-radius: 8px;
+    background: #eef6ff;
+    color: #2f80d6;
+    font-size: 10px;
+  }
+  .role-item .info .pwr {
+    color: #d58a00;
+    font-size: 10px;
+    font-weight: 600;
+  }
+  .role-item .info .rid {
+    color: #8b9099;
+    font-size: 10px;
+  }
+  .role-request-banner {
+    position: fixed;
+    left: 50%;
+    top: calc(env(safe-area-inset-top) + 10px);
+    z-index: 160;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 14px;
+    min-height: 36px;
+    border-radius: 18px;
+    background: rgba(255,255,255,0.96);
+    color: #191c22;
+    font-size: 12px;
+    font-weight: 600;
+    box-shadow: 0 8px 24px rgba(24, 32, 42, 0.18);
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, -10px);
+    transition: opacity .18s ease, transform .18s ease;
+    white-space: nowrap;
+  }
+  .role-request-banner.show {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  .role-request-banner .spinner {
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    border: 2px solid #d8dee8;
+    border-top-color: #2f80d6;
+    animation: roleSpin .75s linear infinite;
+  }
+  @keyframes roleSpin { to { transform: rotate(360deg); } }
+
+  /* Final iOS skin: keep this last so older embedded styles cannot leak through. */
+  html, body {
+    background: transparent !important;
+    color: #1c1c1e;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    overflow: hidden;
+  }
+  body {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .wrap {
+    width: min(330px, calc(100vw - 44px));
+    margin: 0;
+    padding: 20px 18px 18px;
+    background: rgba(255,255,255,0.98);
+    color: #1c1c1e;
+    border: 1px solid rgba(60,60,67,0.08);
+    border-radius: 22px;
+    box-shadow: 0 18px 50px rgba(0,0,0,0.22);
+  }
+  h1 {
+    text-align: left;
+    color: #1c1c1e;
+    font-size: 15px;
+    line-height: 22px;
+    font-weight: 700;
+    margin: 0 0 14px;
+    letter-spacing: 0;
+  }
+  .sub, .path-tip, .log {
+    display: none !important;
+  }
+  .status {
+    min-height: 32px;
+    margin: 0 0 12px;
+    padding: 7px 10px;
+    border: 1px solid #e5e5ea;
+    border-radius: 11px;
+    background: #f2f2f7;
+    color: #8e8e93;
+    font-size: 11px;
+    line-height: 16px;
+  }
+  .status.info, .status.ok { color: #007aff; }
+  .status.err { color: #ff3b30; }
+  .status.warn { color: #b26a00; }
+  .input-field {
+    min-height: 42px;
+    padding: 0 12px;
+    border: 1px solid #e5e5ea;
+    border-radius: 13px;
+    background: #f2f2f7;
+    color: #1c1c1e;
+    font-size: 12px;
+    outline: none;
+  }
+  .input-field::placeholder {
+    color: #8e8e93;
+  }
+  .phone-row {
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .phone-row .btn {
+    flex: none;
+    width: 86px;
+    min-height: 42px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: 13px;
+    background: #007aff;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .btn-row {
+    gap: 8px;
+    margin-top: 22px;
+  }
+  .btn-row .btn {
+    min-height: 40px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 14px;
+    background: #f2f2f7;
+    color: #636366;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .btn-row .btn.primary {
+    background: #007aff;
+    color: #fff;
+  }
+  .mask {
+    background: rgba(0,0,0,0.42);
+  }
+  .dialog {
+    width: 100%;
+    max-width: 480px;
+    max-height: 86vh;
+    background: #f2f2f7;
+    color: #1c1c1e;
+    border: 0;
+    border-radius: 22px 22px 0 0;
+    box-shadow: 0 -12px 34px rgba(0,0,0,0.18);
+  }
+  .dialog .head,
+  .dialog .toolbar,
+  .dialog .foot {
+    background: #fff;
+    border-color: #e5e5ea;
+  }
+  .dialog .head {
+    padding: 13px 16px 9px;
+  }
+  .dialog .head .title {
+    color: #1c1c1e;
+    font-size: 14px;
+    font-weight: 700;
+  }
+  .dialog .head .count,
+  .role-item .meta,
+  .role-item .info,
+  .role-item .info .rid {
+    color: #8e8e93;
+  }
+  .dialog .toolbar .selectAll {
+    color: #1c1c1e;
+  }
+  .dialog .toolbar .selected-info {
+    color: #007aff;
+  }
+  .role-list {
+    background: #f2f2f7;
+    padding: 8px 12px 10px;
+  }
+  .role-item {
+    padding: 10px 12px;
+    margin: 7px 0;
+    border: 1px solid rgba(60,60,67,0.08);
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  .role-item.checked {
+    border-color: #007aff;
+    background: #f7fbff;
+  }
+  .role-item input[type=checkbox] {
+    accent-color: #007aff;
+  }
+  .role-item .name {
+    color: #1c1c1e;
+    font-weight: 700;
+  }
+  .role-item .info .badge {
+    background: #eef6ff;
+    color: #007aff;
+    border-radius: 9px;
+  }
+  .role-item .info .pwr {
+    color: #b26a00;
+  }
+  .dialog .foot .btn {
+    min-height: 40px;
+    border: 0;
+    border-radius: 14px;
+    font-weight: 700;
+  }
+  .role-request-banner {
+    background: rgba(255,255,255,0.96);
+    color: #1c1c1e;
+    border-radius: 18px;
+  }
+  .role-request-banner .spinner {
+    border-top-color: #007aff;
+  }
+</style>
+<style>
+  html.cd-dark body {
+    background: #101114 !important;
+    color: #f2f2f7 !important;
+  }
+  html.cd-dark .wrap {
+    background: #1c1c1e !important;
+    color: #f2f2f7 !important;
+    box-shadow: 0 16px 46px rgba(0,0,0,0.42);
+  }
+  html.cd-dark h1,
+  html.cd-dark .role-item .name {
+    color: #f2f2f7 !important;
+  }
+  html.cd-dark .status {
+    background: #2c2c2e !important;
+    border-color: #38383a !important;
+    color: #aeaeb2 !important;
+  }
+  html.cd-dark .input-field {
+    background: #242426 !important;
+    color: #f2f2f7 !important;
+    border-color: #38383a !important;
+  }
+  html.cd-dark .input-field::placeholder {
+    color: #8e8e93 !important;
+  }
+  html.cd-dark .btn-row .btn,
+  html.cd-dark .phone-row .btn {
+    background: #26364a !important;
+    color: #b8d7ff !important;
+  }
+  html.cd-dark .btn-row .btn.primary,
+  html.cd-dark .phone-row .btn.primary {
+    background: #0a84ff !important;
+    color: #fff !important;
+  }
+  html.cd-dark .dialog {
+    background: #101114 !important;
+    color: #f2f2f7 !important;
+  }
+  html.cd-dark .dialog .head,
+  html.cd-dark .dialog .toolbar,
+  html.cd-dark .dialog .foot {
+    background: #1c1c1e !important;
+    border-color: #38383a !important;
+  }
+  html.cd-dark .role-list {
+    background: #101114 !important;
+  }
+  html.cd-dark .role-item {
+    background: #1c1c1e !important;
+    border-color: #38383a !important;
+    box-shadow: none !important;
+  }
+  html.cd-dark .role-item.checked {
+    background: #1f3048 !important;
+    border-color: #0a84ff !important;
+  }
+  html.cd-dark .role-item .info .badge {
+    background: #26364a !important;
+  }
+  html.cd-dark .role-request-banner {
+    background: #1c1c1e !important;
+    color: #f2f2f7 !important;
+  }
+</style>
+<script>
+(function () {
+    try {
+      if (/[?&]theme=dark(?:&|$)/.test(location.search)) {
+        document.documentElement.classList.add('cd-dark');
+      }
+    } catch (e) {}
+  })();
+</script>
+</head>
+<body>
+<div id="roleRequestBanner" class="role-request-banner">
+  <span class="spinner"></span>
+  <span>正在请求角色</span>
+</div>
+<div class="wrap">
+  <h1>手机号登录</h1>
+  <div class="sub">输入手机号和验证码，登录后选择角色导入</div>
+
+  <div id="status" class="status info">输入手机号后点击"获取验证码"</div>
+
+  <div style="margin:16px 0;">
+    <div class="phone-row">
+      <input id="phoneInput" class="input-field" type="tel" maxlength="11" placeholder="请输入手机号" />
+    </div>
+    <div class="phone-row code-row">
+      <input id="codeInput" class="input-field" type="tel" maxlength="6" placeholder="请输入验证码" />
+      <button id="btnSendCode" class="btn primary">获取验证码</button>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn" id="btnCancel">取消</button>
+    <button class="btn primary" id="btnLogin">登录</button>
+  </div>
+
+  <div class="log" id="log"></div>
+
+  <div class="path-tip">
+    <div>导入后存储位置</div>
+    <div>公共目录：<code>Download/xyzw/&lt;名字-区服xxx&gt;.bin</code></div>
+    <div>同时已导入到 App「文件管理」列表，可直接使用</div>
+  </div>
+</div>
+
+<!-- 角色选择 dialog -->
+<div class="mask" id="roleMask">
+  <div class="dialog">
+    <div class="head">
+      <div><span class="title">选择要导入的角色</span><span class="count" id="roleCount"></span></div>
+    </div>
+    <div class="toolbar">
+      <label class="selectAll"><input type="checkbox" id="chkAll" /><span>全选</span></label>
+      <span class="selected-info" id="selInfo">已选 0</span>
+    </div>
+    <div class="role-list" id="roleList"></div>
+    <div class="foot">
+      <button class="btn" id="btnDlgCancel">取消</button>
+      <button class="btn primary" id="btnDlgOk">导入选中</button>
+    </div>
+  </div>
+</div>
+
+<script src="../vendor/game-crypto.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var Bridge = (typeof AndroidBridge !== 'undefined') ? AndroidBridge : null;
+  function brLog(tag, msg) { try { if (Bridge && Bridge.log) Bridge.log(tag, String(msg)); } catch (e) {} console.log('[' + tag + ']', msg); }
+  function toast(msg) { try { if (Bridge && Bridge.toast) Bridge.toast(String(msg)); } catch (e) {} }
+  function finishAll(msg) { if (Bridge && Bridge.finishAll) Bridge.finishAll(String(msg || '')); else window.close(); }
+
+  var $status = document.getElementById('status');
+  var $log = document.getElementById('log');
+  var $roleRequestBanner = document.getElementById('roleRequestBanner');
+  var $roleList = document.getElementById('roleList');
+  var $roleCount = document.getElementById('roleCount');
+  var $roleMask = document.getElementById('roleMask');
+  var $chkAll = document.getElementById('chkAll');
+  var $selInfo = document.getElementById('selInfo');
+  var $btnDlgOk = document.getElementById('btnDlgOk');
+  var $btnDlgCancel = document.getElementById('btnDlgCancel');
+
+  function setStatus(text, type) { $status.textContent = text; $status.className = 'status ' + (type || 'info'); }
+  function showRoleRequest() {
+    if ($roleRequestBanner) $roleRequestBanner.classList.add('show');
+    setStatus('正在请求角色', 'info');
+  }
+  function hideRoleRequest() {
+    if ($roleRequestBanner) $roleRequestBanner.classList.remove('show');
+  }
+  function appendLog(text, kind) {
+    var p = document.createElement('div');
+    p.className = 'log-line' + (kind ? (' ' + kind) : '');
+    p.textContent = '[' + new Date().toLocaleTimeString() + '] ' + text;
+    $log.appendChild(p); $log.classList.add('show'); $log.scrollTop = $log.scrollHeight;
+  }
+
+  // Base64 / ArrayBuffer
+  function abToB64(buf) { var u8 = (buf instanceof Uint8Array) ? buf : new Uint8Array(buf); var s = ''; for (var i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); }
+  function b64ToU8(b64) { var bin = atob(b64 || ''); var u8 = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); return u8; }
+  function u8ToHex(u8, n) { n = Math.min(n || 32, u8.length); var s = ''; for (var i = 0; i < n; i++) { var h = u8[i].toString(16); if (h.length < 2) h = '0' + h; s += h; } return s; }
+
+  // encodePayload (与 wxqrcode 完全一致)
+  var CIPHER_TABLE = "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";
+  var XOR_SHIFT = 1, SHUFFLE_TIMES = 6, STEP = 3;
+  function encodeBase64(text) { return text ? btoa(unescape(encodeURIComponent(text))) : null; }
+  function rightSide(s) { return s.substring(s.length / 2); }
+  function leftSide(s) { return s.substring(0, s.length / 2); }
+  function transCode(s, t) { if (t <= 0) return s; return transCode(rightSide(s), t - 1) + transCode(leftSide(s), t - 1); }
+  function getCodeKey(s, step) { var o = '', n = Math.floor(s.length / step); for (var i = 0; i < n; i++) o += s.charAt(i * step); return o; }
+  function dealWithString(src, key, shift) { if (!src || !key) return null; var o = '', idx = key.length >> shift; for (var i = 0; i < src.length; i++) { if (idx >= key.length) idx = 0; o += String.fromCharCode(src.charCodeAt(i) ^ key.charCodeAt(idx)); idx++; } return o; }
+  function encodePayload(text) { var b64 = encodeBase64(text); var shuffled = transCode(CIPHER_TABLE, SHUFFLE_TIMES); var key = getCodeKey(shuffled, STEP); return encodeBase64(dealWithString(b64, key, XOR_SHIFT)); }
+
+  // proxyPost (走 AndroidBridge)
+  function proxyPost(url, headers, body, contentType) {
+    return new Promise(function (resolve, reject) {
+      if (!Bridge || !Bridge.proxyPost) return reject(new Error('AndroidBridge 不可用'));
+      var bodyB64;
+      if (body == null) bodyB64 = '';
+      else if (typeof body === 'string') bodyB64 = btoa(unescape(encodeURIComponent(body)));
+      else if (body instanceof ArrayBuffer || body instanceof Uint8Array) bodyB64 = abToB64(body);
+      else bodyB64 = btoa(unescape(encodeURIComponent(String(body))));
+      var rawJson = Bridge.proxyPost(url, JSON.stringify(headers || {}), bodyB64, contentType || '');
+      var r = JSON.parse(rawJson || '{}');
+      if (r.status === 0) return reject(new Error(r.error || 'proxyPost failed'));
+      var u8 = b64ToU8(r.bodyBase64 || '');
+      var text = ''; try { text = new TextDecoder('utf-8').decode(u8); } catch (e) { for (var i = 0; i < u8.length; i++) text += String.fromCharCode(u8[i]); }
+      resolve({ status: r.status, statusText: r.statusText, headers: r.headers, text: text, raw: u8 });
+    });
+  }
+
+  // GameCrypto
+  function encodeBin(obj) {
+    var GC = window.GameCrypto;
+    if (!GC || !GC.encMsg) throw new Error('GameCrypto.encMsg 不可用');
+    var buf = GC.encMsg(obj, { decrypt: GC.lz4XorDecode, encrypt: GC.lz4XorEncode });
+    var src = (buf instanceof Uint8Array) ? buf : new Uint8Array(buf);
+    var out = new Uint8Array(src.length); out.set(src);
+    return out;
+  }
+  function getAutoEnc() {
+    var GC = window.GameCrypto;
+    return {
+      encrypt: function (e) { return GC.xorEncode(e); },
+      decrypt: function (e) {
+        if (e.length > 4 && e[0] === 0x70 && e[1] === 0x6c) return GC.lz4XorDecode(e);
+        if (e.length > 4 && e[0] === 0x70 && e[1] === 0x78) return GC.xorDecode(e);
+        if (e.length > 3 && e[0] === 0x70 && e[1] === 0x74 && GC.getEncryptor) { var xtm = GC.getEncryptor('xtm'); if (xtm && xtm.decrypt) return xtm.decrypt(e); }
+        return e;
+      }
+    };
+  }
+  function getRolePower(role) {
+    return Number(role && (role.power || role.fightPower || role.combatPower || role.zhanli || role.fighting)) || 0;
+  }
+
+  function formatPower(value) {
+    var n = Number(value) || 0;
+    function trim(v) { return v.toFixed(2).replace(/\.?0+$/, ''); }
+    if (Math.abs(n) >= 100000000) return trim(n / 100000000) + '亿';
+    if (Math.abs(n) >= 10000) return trim(n / 10000) + '万';
+    return String(n);
+  }
+
+  function getServerList(arrBuf) {
+    return proxyPost('/api/xxz/login/serverlist?_seq=3', { 'Accept': '*/*' }, arrBuf, 'application/octet-stream')
+      .then(function (resp) {
+        appendLog('serverlist HTTP ' + resp.status, resp.status === 200 ? 'ok' : 'err');
+        if (resp.status !== 200) throw new Error('serverlist HTTP ' + resp.status);
+        var raw = resp.raw || new Uint8Array(0);
+        if (raw.length === 0) throw new Error('serverlist 响应为空');
+        var GC = window.GameCrypto;
+        var msg = GC.decMsg(raw, getAutoEnc());
+        if (!msg) throw new Error('decMsg 返回 null');
+        var data = null;
+        try { data = msg.rawData; } catch (e) {}
+        if (!data && msg && msg._raw) data = msg._raw;
+        if (!data) return [];
+        if (data.code && data.code !== 0) throw new Error('serverlist code=' + data.code);
+        if (!data.roles && data.body) {
+          try { var inner = GC.bon ? GC.bon.decode(data.body instanceof Uint8Array ? data.body : new Uint8Array(data.body)) : null; if (inner && inner.roles) data = inner; } catch (e) {}
+        }
+        if (!data.roles) return [];
+        var rolesObj = data.roles;
+        var arr = [];
+        if (rolesObj instanceof Map) { rolesObj.forEach(function (v) { arr.push(v); }); }
+        else if (Array.isArray(rolesObj)) { arr = rolesObj; }
+        else { Object.keys(rolesObj).forEach(function (k) { arr.push(rolesObj[k]); }); }
+        arr.sort(function (a, b) { return getRolePower(b) - getRolePower(a); });
+        return arr;
+      });
+  }
+
+  // 角色弹窗
+  var state = { busy: false, nickname: '', combUser: null, originalBinData: null, roles: [] };
+
+  function getRoleServerId(role) {
+    return role && (role.serverId || role.sid || role.server || 0);
+  }
+
+  function formatServer(sid) {
+    var rawServerId = Number(sid) || 0;
+    var baseServerId = rawServerId;
+    var ri = 0;
+    if (baseServerId >= 2000000) {
+      ri = 2;
+      baseServerId -= 2000000;
+    } else if (baseServerId >= 1000000) {
+      ri = 1;
+      baseServerId -= 1000000;
+    }
+    var displayServerId = baseServerId > 1000 ? baseServerId - 27 : baseServerId;
+    return { rawServerId: rawServerId, baseServerId: baseServerId, serverId: displayServerId, roleIndex: ri };
+  }
+
+  function buildFileName(role) {
+    var serverInfo = formatServer(getRoleServerId(role));
+    var serverId = serverInfo.serverId || serverInfo.rawServerId || 0;
+    return ((role.name || ('角色_' + role.roleId)) + '-区服' + serverId).replace(/[\\/:*?"<>|]+/g, '_');
+  }
+
+  function renderRoleList(roles) {
+    $roleList.innerHTML = '';
+    $roleCount.textContent = '共 ' + roles.length + ' 个';
+    roles.forEach(function (role, idx) {
+      var item = document.createElement('label'); item.className = 'role-item checked';
+      var cb = document.createElement('input'); cb.type = 'checkbox'; cb.dataset.idx = String(idx); cb.checked = true;
+      cb.addEventListener('change', function () {
+        item.classList.toggle('checked', cb.checked);
+        updateSelInfo();
+      });
+      var meta = document.createElement('div'); meta.className = 'meta';
+      var nm = document.createElement('div'); nm.className = 'name'; nm.textContent = role.name || ('角色_' + role.roleId);
+      var inf = document.createElement('div'); inf.className = 'info';
+      var serverInfo = formatServer(getRoleServerId(role));
+      var server = document.createElement('span'); server.className = 'badge'; server.textContent = '区服 ' + (serverInfo.serverId || '?');
+      var pwr = document.createElement('span'); pwr.className = 'pwr'; pwr.textContent = '战力 ' + formatPower(getRolePower(role));
+      var rid = document.createElement('span'); rid.className = 'rid'; rid.textContent = 'ID ' + (role.roleId || '');
+      inf.appendChild(server); inf.appendChild(pwr);
+      if (role.roleId) inf.appendChild(rid);
+      meta.appendChild(nm); meta.appendChild(inf);
+      item.appendChild(cb); item.appendChild(meta);
+      $roleList.appendChild(item);
+    });
+    updateSelInfo();
+  }
+  function updateSelInfo() {
+    var cbs = $roleList.querySelectorAll('input[type=checkbox]');
+    var cnt = 0; cbs.forEach(function (c) { if (c.checked) cnt++; });
+    $selInfo.textContent = '已选 ' + cnt + ' / ' + cbs.length;
+    $chkAll.checked = cnt === cbs.length && cnt > 0;
+  }
+  $chkAll.addEventListener('change', function () {
+    var cbs = $roleList.querySelectorAll('input[type=checkbox]');
+    cbs.forEach(function (c) {
+      c.checked = $chkAll.checked;
+      var item = c.closest('.role-item');
+      if (item) item.classList.toggle('checked', $chkAll.checked);
+    });
+    updateSelInfo();
+  });
+  function showRoleDialog(roles) {
+    hideRoleRequest();
+    state.roles = roles;
+    renderRoleList(roles);
+    $roleMask.classList.add('show');
+  }
+  $btnDlgCancel.addEventListener('click', function () { $roleMask.classList.remove('show'); state.busy = false; });
+  $btnDlgOk.addEventListener('click', function () {
+    var cbs = $roleList.querySelectorAll('input[type=checkbox]');
+    var picks = [];
+    cbs.forEach(function (c) { if (c.checked) picks.push(Number(c.dataset.idx)); });
+    if (picks.length === 0) { toast('请至少选择一个角色'); return; }
+    $roleMask.classList.remove('show');
+    importPickedRoles(picks);
+  });
+
+  function importPickedRoles(indices) {
+    var ok = 0, fail = 0, total = indices.length;
+    setStatus('正在导入 0 / ' + total + ' …', 'info');
+    function next(i) {
+      if (i >= total) {
+        setStatus('导入完成：成功 ' + ok + '，失败 ' + fail, ok > 0 ? 'ok' : 'err');
+        state.busy = false;
+        if (ok > 0) setTimeout(function () { finishAll('导入成功 ' + ok + ' 个角色'); }, 1500);
+        return;
+      }
+      var role = state.roles[indices[i]];
+      var binData = JSON.parse(JSON.stringify(state.originalBinData));
+      binData.serverId = Number(getRoleServerId(role)) || 0;
+      try {
+        var u8 = encodeBin(binData);
+        var b64 = abToB64(u8);
+        var fname = buildFileName(role);
+        var res = Bridge.saveBin(fname, b64);
+        var r = JSON.parse(res || '{}');
+        if (r.ok) { ok++; appendLog('✓ ' + fname, 'ok'); }
+        else { fail++; appendLog('✗ ' + fname + ': ' + (r.error || ''), 'err'); }
+      } catch (e) { fail++; appendLog('✗ ' + (role.name || '') + ': ' + e.message, 'err'); }
+      setStatus('正在导入 ' + (i + 1) + ' / ' + total + ' …', 'info');
+      setTimeout(function () { next(i + 1); }, 50);
+    }
+    next(0);
+  }
+
+  // ============================================================
+  //  手机号登录逻辑
+  // ============================================================
+  var $phoneInput = document.getElementById('phoneInput');
+  var $codeInput = document.getElementById('codeInput');
+  var $btnSendCode = document.getElementById('btnSendCode');
+  var $btnLogin = document.getElementById('btnLogin');
+  var $btnCancel = document.getElementById('btnCancel');
+  var activeLoginMatchId = null;
+
+  function generateLoginMatchId() {
+    return Date.now() + '_DID-' + ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, function(c) {
+      return (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16);
+    });
+  }
+
+  $btnSendCode.addEventListener('click', function () {
+    var phone = $phoneInput.value.trim();
+    if (!/^1\d{10}$/.test(phone)) { setStatus('请输入正确的11位手机号', 'err'); return; }
+    $btnSendCode.disabled = true;
+    setStatus('正在发送验证码...', 'info');
+    activeLoginMatchId = generateLoginMatchId();
+    var reqData = JSON.stringify({
+      gameId: 'xyzwapp', gameTp: 'app', accountNum: phone,
+      sysInfo: JSON.stringify({ system: 'Android 12', hortorSDKVersion: '4.2.1-cn-release', model: '22081212C', brand: 'Redmi' }),
+      activeLoginMatchId: activeLoginMatchId, channel: 'android', verifyCodeTp: 'login',
+      distinctId: activeLoginMatchId.split('_')[1],
+      oaidThirdSdk: '', ipv6: '', limit: true,
+      packageName: 'com.hortor.games.xyzw',
+      signPrint: 'E6:F7:FE:A9:EC:8E:24:D0:4F:2A:32:50:28:78:E1:C5:5E:70:81:13',
+      androidId: '554e4fb740b853e1', oaId: '', oaid: ''
+    });
+    proxyPost('/api/ucenter/ucenter-app-server/api/v1/login/verify/code', { 'Content-Type': 'application/json; charset=utf-8' }, reqData, 'application/json; charset=utf-8')
+      .then(function (resp) {
+        if (resp.status !== 200) throw new Error('HTTP ' + resp.status);
+        var json = JSON.parse(resp.text);
+        if (json.meta && json.meta.errCode !== 0) throw new Error(json.meta.errMsg || '发送失败');
+        if (json.data && json.data.sendSuccess) {
+          setStatus('验证码已发送，请查看短信', 'ok');
+          var sec = json.data.waitSecond || 60;
+          var timer = setInterval(function () { sec--; if (sec <= 0) { clearInterval(timer); $btnSendCode.disabled = false; $btnSendCode.textContent = '获取验证码'; } else { $btnSendCode.textContent = '(' + sec + 's)'; } }, 1000);
+        } else { throw new Error(json.data && json.data.msg || '发送失败'); }
+      }).catch(function (e) { setStatus('发送失败: ' + e.message, 'err'); $btnSendCode.disabled = false; });
+  });
+
+  $btnLogin.addEventListener('click', function () {
+    var phone = $phoneInput.value.trim(), code = $codeInput.value.trim();
+    if (!phone || !code) { setStatus('请输入手机号和验证码', 'err'); return; }
+    if (!activeLoginMatchId) { setStatus('请先获取验证码', 'err'); return; }
+    $btnLogin.disabled = true;
+    setStatus('正在验证登录...', 'info');
+
+    var payload = JSON.stringify({
+      gameId: 'xyzwapp', gameTp: 'app',
+      sysInfo: JSON.stringify({ system: 'Android 12', hortorSDKVersion: '4.2.1-cn-release', model: '22081212C', brand: 'Redmi' }),
+      activeLoginMatchId: activeLoginMatchId, smsCode: code, mobile: phone,
+      channel: 'android', distinctId: activeLoginMatchId.split('_')[1],
+      oaidThirdSdk: '', ipv6: '', packageName: 'com.hortor.games.xyzw',
+      signPrint: 'E6:F7:FE:A9:EC:8E:24:D0:4F:2A:32:50:28:78:E1:C5:5E:70:81:13',
+      tp: 'app-mobile', androidId: '554e4fb740b853e1', oaId: '', oaid: ''
+    });
+    var encoded;
+    try { encoded = encodePayload(payload); } catch (e) { setStatus('加密失败: ' + e.message, 'err'); $btnLogin.disabled = false; return; }
+
+    var loginUrl = '/api/hortor/comb-login-server/api/v1/login?gameId=xyzwapp&timestamp=' + Date.now()
+      + '&version=android-4.2.1-cn-release&cryptVersion=1.1.0&gameTp=app&system=android'
+      + '&deviceUniqueId=' + activeLoginMatchId.split('_')[1] + '&packageName=com.hortor.games.xyzw';
+
+    proxyPost(loginUrl, { 'Accept': '*/*' }, encoded, 'text/plain; charset=utf-8')
+      .then(function (resp) {
+        if (resp.status !== 200) throw new Error('HTTP ' + resp.status);
+        var json = JSON.parse(resp.text);
+        if (!json || !json.meta || json.meta.errCode !== 0) throw new Error(json && json.meta && json.meta.errMsg || '登录失败');
+        var combUser = json.data && json.data.combUser;
+        if (!combUser) throw new Error('缺少 combUser');
+        appendLog('登录成功', 'ok');
+        showRoleRequest();
+        state.combUser = combUser; state.nickname = phone; state.busy = true;
+        var binData = { platform: 'hortor', platformExt: 'mix', info: combUser, serverId: 0, scene: 0, referrerInfo: '', deviceUniqueId: '' };
+        var u8 = encodeBin(binData);
+        state.originalBinData = binData;
+        return getServerList(u8.buffer);
+      })
+      .then(function (roles) {
+        if (!roles || roles.length === 0) throw new Error('没有获取到角色');
+        hideRoleRequest();
+        setStatus('请选择要导入的角色（' + roles.length + ' 个）', 'ok');
+        showRoleDialog(roles);
+      })
+      .catch(function (e) {
+        hideRoleRequest();
+        state.busy = false; $btnLogin.disabled = false;
+        setStatus('失败: ' + e.message, 'err');
+        appendLog('ERR: ' + e.message, 'err');
+      });
+  });
+
+  $btnCancel.addEventListener('click', function () { finishAll(''); });
+
+  // 自检
+  window.addEventListener('load', function () {
+    if (!window.GameCrypto || !window.GameCrypto.encMsg) {
+      setStatus('警告：lz4_encryptor.js 未加载', 'warn');
+    }
+  });
+})();
+</script>
+</body>
+</html>
