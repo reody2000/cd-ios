@@ -1,0 +1,10 @@
+name: diag-macos
+on:
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: macos-latest
+    steps:
+      - name: echo
+        run: uname -a
