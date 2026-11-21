@@ -749,6 +749,18 @@
       window.__cdNativeLoginPatchTimer = null;
       return;
     }
+    // 异常账号边界处理：游戏模块已就绪且账号存在但注入持续失败 → 账号解码异常，给出可见提示
+    if (tries === 300) {
+      try {
+        var req = window.__require;
+        var hasModules = !!(req && req('13') && req('data-index'));
+        if (hasModules && getHex() && !window.__cdNativeAccount) {
+          if (window.AndroidBinBridge && AndroidBinBridge.reportRoleListError) {
+            AndroidBinBridge.reportRoleListError('账号数据无法解码，请重新导入该账号');
+          }
+        }
+      } catch (e) {}
+    }
     if (tries > 300) {
       clearInterval(timer);
       timer = setInterval(function () { tryPatch(); }, 1000);

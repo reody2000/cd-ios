@@ -58,10 +58,18 @@ struct GameWebView: UIViewRepresentable {
 
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
             NSLog("[CD] game load failed: \(error)")
+            let nsError = error as NSError
+            if nsError.code == NSURLErrorCancelled { return }
+            NotificationCenter.default.post(name: .cdToast,
+                                            userInfo: ["message": "游戏加载失败：\(nsError.localizedDescription)"])
         }
 
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
             NSLog("[CD] game provisional load failed: \(error)")
+            let nsError = error as NSError
+            if nsError.code == NSURLErrorCancelled { return }
+            NotificationCenter.default.post(name: .cdToast,
+                                            userInfo: ["message": "游戏页面加载失败：\(nsError.localizedDescription)"])
         }
 
         /// 处理 target=_blank / window.open

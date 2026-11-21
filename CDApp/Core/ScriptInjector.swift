@@ -114,6 +114,46 @@ enum ScriptInjector {
               }
             } catch (e) {}
           })();
+
+          // 全局错误捕获：JS 异常/未处理 Promise 拒绝上报原生日志，前几条弹 toast
+          // （登录/启动失败曾无任何可见报错，此处在设备侧补齐诊断面）
+          (function () {
+            var toasted = 0;
+            function report(kind, message) {
+              try {
+                if (window.AndroidBridge && AndroidBridge.log) AndroidBridge.log('js-' + kind, String(message).slice(0, 500));
+              } catch (e) {}
+              if (toasted < 3) {
+                toasted++;
+                try {
+                  if (window.AndroidBridge && AndroidBridge.toast) {
+                    AndroidBridge.toast('脚本异常(' + kind + ')：' + String(message).slice(0, 100));
+                  }
+                } catch (e) {}
+              }
+            }
+            try {
+              window.addEventListener('error', function (e) {
+                if (!e || !e.message) return;
+                report('error', e.message + ' @' + String(e.filename || '').split('/').pop() + ':' + (e.lineno || ''));
+              });
+              window.addEventListener('unhandledrejection', function (e) {
+                var r = e && e.reason;
+                report('reject', (r && (r.stack || r.message)) || String(r));
+              });
+            } catch (e) {}
+            try {
+              var origErr = console.error;
+              console.error = function () {
+                try {
+                  if (window.AndroidBridge && AndroidBridge.log) {
+                    AndroidBridge.log('console', Array.prototype.slice.call(arguments).map(String).join(' ').slice(0, 500));
+                  }
+                } catch (e2) {}
+                return origErr.apply(this, arguments);
+              };
+            } catch (e) {}
+          })();
         })();
         """
         return WKUserScript(source: js, injectionTime: .atDocumentStart, forMainFrameOnly: true)

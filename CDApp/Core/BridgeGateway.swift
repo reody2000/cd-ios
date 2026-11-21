@@ -138,8 +138,16 @@ final class BridgeGateway {
             return HTTPResponse.json(["v": NSNull()])
 
         // 上报（原用于订阅赠送 / 状态同步，本地版空实现）
+        case "reportRoleListError":
+            // 角色列表失败是登录/启动链路的关键异常，必须可见（对齐用户反馈「无报错卡住」问题）
+            let message = str(0)
+            NSLog("[CD][role-error] \(message)")
+            if !message.isEmpty {
+                notifyOnMain(.cdToast, userInfo: ["message": "角色获取失败：\(message)"])
+            }
+            return HTTPResponse.json(["v": NSNull()])
         case "reportCurrentServer", "reportGameReadyForScripts", "reportLoginSuccessForScripts",
-             "reportRoleList", "reportRoleListError", "reportInfiniteLineupGift", "reportSaltViewGift":
+             "reportRoleList", "reportInfiniteLineupGift", "reportSaltViewGift":
             if method == "reportGameReadyForScripts" { notifyOnMain(.cdGameReady) }
             return HTTPResponse.json(["v": NSNull()])
 
@@ -260,7 +268,10 @@ final class BridgeGateway {
             return .notFound()
         }
         let result = ProxyClient.raw(url: pathOrURL, method: method, headers: headers, body: body)
-        guard result.status != 0 else { return .notFound() }
+        guard result.status != 0 else {
+            NSLog("[CD][proxyRaw] request failed: \(method) \(pathOrURL)")
+            return .notFound()
+        }
 
         var responseHeaders: [String: String] = [:]
         let drop: Set<String> = ["content-encoding", "content-length", "transfer-encoding",
