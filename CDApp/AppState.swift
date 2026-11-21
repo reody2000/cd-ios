@@ -20,7 +20,7 @@ final class AppState: ObservableObject {
     init() {
         // 清一次 WKWebView 旧缓存：曾因 max-age 缓存命中旧版脚本（更新 App 后新逻辑不生效）
         WKWebsiteDataStore.default().removeData(
-            ofTypes: [WKWebsiteDataTypeDiskCaches, WKWebsiteDataTypeMemoryCaches],
+            ofTypes: [WKWebsiteDataTypeDiskCache, WKWebsiteDataTypeMemoryCache],
             modifiedSince: .distantPast,
             completionHandler: {}
         )
