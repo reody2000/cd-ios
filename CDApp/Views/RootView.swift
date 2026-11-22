@@ -1,25 +1,31 @@
 import SwiftUI
 
 /// 主界面：对齐 Android 端三 Tab 结构（账号 / 游戏 / 设置）
+/// 导航优化：分段式导航（图标 + 动画胶囊指示器），Tab 切换保持游戏 WebView 不销毁
 struct RootView: View {
 
     @EnvironmentObject private var app: AppState
     @State private var tab = 0
+    @Namespace private var navAnim
 
     private let accent = Color(red: 0.180, green: 0.420, blue: 0.949)
+    private let pageBg = Color(red: 0.949, green: 0.957, blue: 0.973)
 
     var body: some View {
         VStack(spacing: 0) {
-            tabBar
-            Group {
-                switch tab {
-                case 0:
-                    AccountManagerView(tab: $tab)
-                case 1:
-                    gameTab
-                default:
-                    SettingsView()
-                }
+            navBar
+            ZStack {
+                // 三个页面常驻挂载：切换 Tab 仅切换可见性，
+                // 避免游戏 WebView 被销毁导致对局/连接中断
+                AccountManagerView(tab: $tab)
+                    .opacity(tab == 0 ? 1 : 0)
+                    .allowsHitTesting(tab == 0)
+                gameTab
+                    .opacity(tab == 1 ? 1 : 0)
+                    .allowsHitTesting(tab == 1)
+                SettingsView()
+                    .opacity(tab == 2 ? 1 : 0)
+                    .allowsHitTesting(tab == 2)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -27,6 +33,7 @@ struct RootView: View {
                 toastView(message)
             }
         }
+        .background(pageBg.ignoresSafeArea())
         .onReceive(NotificationCenter.default.publisher(for: .cdToast)) { note in
             if let message = note.userInfo?["message"] as? String, !message.isEmpty {
                 app.showToast(message)
@@ -52,32 +59,51 @@ struct RootView: View {
         }
     }
 
-    // MARK: 顶部 Tab（账号 / 游戏 / 设置）
+    // MARK: 分段式导航（账号 / 游戏 / 设置）
 
-    private var tabBar: some View {
-        HStack(spacing: 0) {
-            tabButton("账号", index: 0)
-            tabButton("游戏", index: 1)
-            tabButton("设置", index: 2)
+    private var navBar: some View {
+        HStack(spacing: 4) {
+            navItem("账号", icon: "person.2", selectedIcon: "person.2.fill", index: 0)
+            navItem("游戏", icon: "gamecontroller", selectedIcon: "gamecontroller.fill", index: 1)
+            navItem("设置", icon: "gearshape", selectedIcon: "gearshape.fill", index: 2)
         }
+        .padding(4)
         .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .shadow(color: Color.black.opacity(0.07), radius: 12, y: 4)
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+        .padding(.bottom, 10)
     }
 
-    private func tabButton(_ title: String, index: Int) -> some View {
-        Button {
-            tab = index
-        } label: {
-            VStack(spacing: 7) {
-                Text(title)
-                    .font(.system(size: 15, weight: tab == index ? .semibold : .regular))
-                    .foregroundColor(tab == index ? accent : Color(red: 0.35, green: 0.37, blue: 0.40))
-                Rectangle()
-                    .fill(tab == index ? accent : Color.clear)
-                    .frame(height: 2.5)
+    private func navItem(_ title: String, icon: String, selectedIcon: String, index: Int) -> some View {
+        let selected = tab == index
+        return Button {
+            guard !selected else { return }
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                tab = index
             }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: selected ? selectedIcon : icon)
+                    .font(.system(size: 15, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 14, weight: selected ? .semibold : .medium))
+            }
+            .foregroundColor(selected ? .white : Color(red: 0.42, green: 0.45, blue: 0.50))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 9)
+            .background(
+                ZStack {
+                    if selected {
+                        Capsule()
+                            .fill(accent)
+                            .matchedGeometryEffect(id: "navPill", in: navAnim)
+                    }
+                }
+            )
         }
         .buttonStyle(.plain)
-        .frame(maxWidth: .infinity)
     }
 
     // MARK: 游戏 Tab
@@ -111,6 +137,7 @@ struct RootView: View {
             .padding(.top, 12)
             .padding(.trailing, 14)
         }
+        .transition(.opacity)
     }
 
     // MARK: 启动中

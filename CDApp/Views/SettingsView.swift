@@ -5,7 +5,6 @@ struct SettingsView: View {
 
     @ObservedObject private var settings = SettingsStore.shared
     @ObservedObject private var scripts = ScriptStore.shared
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationView {
@@ -93,15 +92,11 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("设置")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("完成") { dismiss() }
-                }
-            }
+            .navigationBarTitleDisplayMode(.large)
         }
         .navigationViewStyle(.stack)
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(.light)
+        .accentColor(Color(red: 0.180, green: 0.420, blue: 0.949))
     }
 
     // MARK: 内置脚本开关（位于游戏功能下方）

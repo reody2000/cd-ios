@@ -66,13 +66,13 @@ struct AccountManagerView: View {
                 Button("脚本管理") { tab = 2 }
                 Button("游戏设置") { tab = 2 }
             } label: {
-                pillLabel("工具箱")
+                pillLabel("工具箱", icon: "wrench.and.screwdriver")
             }
-            pillButton("搜索") {
+            pillButton("搜索", icon: "magnifyingglass") {
                 withAnimation { searchActive.toggle() }
                 if !searchActive { searchText = "" }
             }
-            pillButton("群控") { app.showToast("群控请在电脑端工具箱使用") }
+            pillButton("群控", icon: "person.2") { app.showToast("群控请在电脑端工具箱使用") }
             Menu {
                 Button("导入 BIN 文件") { showImporter = true }
                 Button("从剪贴板导入") { app.saveAccountFromClipboard() }
@@ -90,18 +90,24 @@ struct AccountManagerView: View {
         .padding(.bottom, 12)
     }
 
-    private func pillLabel(_ title: String) -> some View {
-        Text(title)
-            .font(.system(size: 13, weight: .medium))
-            .foregroundColor(accent)
-            .padding(.horizontal, 13)
-            .padding(.vertical, 7)
-            .background(Color(red: 0.906, green: 0.937, blue: 0.996))
-            .clipShape(Capsule())
+    private func pillLabel(_ title: String, icon: String? = nil) -> some View {
+        HStack(spacing: 4) {
+            if let icon = icon {
+                Image(systemName: icon)
+                    .font(.system(size: 11, weight: .semibold))
+            }
+            Text(title)
+                .font(.system(size: 13, weight: .medium))
+        }
+        .foregroundColor(accent)
+        .padding(.horizontal, 13)
+        .padding(.vertical, 7)
+        .background(Color(red: 0.906, green: 0.937, blue: 0.996))
+        .clipShape(Capsule())
     }
 
-    private func pillButton(_ title: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) { pillLabel(title) }
+    private func pillButton(_ title: String, icon: String? = nil, action: @escaping () -> Void) -> some View {
+        Button(action: action) { pillLabel(title, icon: icon) }
             .buttonStyle(.plain)
     }
 
@@ -165,26 +171,41 @@ struct AccountManagerView: View {
             tab = 1
         } label: {
             HStack(spacing: 12) {
+                Text(String(account.name.prefix(1)).uppercased())
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(accent)
+                    .frame(width: 40, height: 40)
+                    .background(Color(red: 0.906, green: 0.937, blue: 0.996))
+                    .clipShape(Circle())
                 VStack(alignment: .leading, spacing: 5) {
                     Text(account.name)
                         .font(.system(size: 15, weight: .medium))
                         .foregroundColor(Color(red: 0.10, green: 0.11, blue: 0.13))
                         .lineLimit(1)
-                    Text(lastLoginText(account))
-                        .font(.system(size: 12))
-                        .foregroundColor(Color(red: 0.55, green: 0.58, blue: 0.63))
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock")
+                            .font(.system(size: 10))
+                        Text(lastLoginText(account))
+                            .font(.system(size: 12))
+                    }
+                    .foregroundColor(Color(red: 0.55, green: 0.58, blue: 0.63))
                 }
                 Spacer()
                 if app.currentAccount == account.name {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 18))
                         .foregroundColor(accent)
+                } else {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(Color(red: 0.75, green: 0.78, blue: 0.82))
                 }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 13)
             .background(Color.white)
             .clipShape(RoundedRectangle(cornerRadius: 12))
+            .shadow(color: Color.black.opacity(0.04), radius: 6, y: 2)
         }
         .buttonStyle(.plain)
         .contextMenu {
