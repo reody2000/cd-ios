@@ -60,7 +60,7 @@ struct GameWebView: UIViewRepresentable {
             NSLog("[CD] game load failed: \(error)")
             let nsError = error as NSError
             if nsError.code == NSURLErrorCancelled { return }
-            NotificationCenter.default.post(name: .cdToast,
+            NotificationCenter.default.post(name: .cdToast, object: nil,
                                             userInfo: ["message": "游戏加载失败：\(nsError.localizedDescription)"])
         }
 
@@ -68,7 +68,7 @@ struct GameWebView: UIViewRepresentable {
             NSLog("[CD] game provisional load failed: \(error)")
             let nsError = error as NSError
             if nsError.code == NSURLErrorCancelled { return }
-            NotificationCenter.default.post(name: .cdToast,
+            NotificationCenter.default.post(name: .cdToast, object: nil,
                                             userInfo: ["message": "游戏页面加载失败：\(nsError.localizedDescription)"])
         }
 
