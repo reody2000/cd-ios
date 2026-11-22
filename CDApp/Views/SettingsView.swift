@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 设置页：游戏功能开关（键名与 Android 壳一致）+ 脚本管理 + 关于
+/// 设置页：游戏功能 + 内置脚本开关（游戏功能下方）+ 网络 + 显示与性能 + 脚本管理（用户脚本）+ 关于
 struct SettingsView: View {
 
     @ObservedObject private var settings = SettingsStore.shared
@@ -18,6 +18,7 @@ struct SettingsView: View {
                     Toggle("怪异塔一键合成", isOn: $settings.quickMergeEnabled)
                     Toggle("跳过前 150 关", isOn: $settings.skip150Enabled)
                     Toggle("固定游戏导航", isOn: $settings.gameNavFixedEnabled)
+                    builtinScriptRows
                 } header: {
                     Text("游戏功能")
                 } footer: {
@@ -62,7 +63,7 @@ struct SettingsView: View {
                         HStack {
                             Text("脚本管理")
                             Spacer()
-                            Text("\(scripts.items.filter { scripts.isEnabled($0.id) }.count)/\(scripts.items.count)")
+                            Text("\(scripts.userItems.filter { scripts.isEnabled($0) }.count)/\(scripts.userItems.count)")
                                 .font(.system(size: 13))
                                 .foregroundColor(.secondary)
                         }
@@ -70,7 +71,7 @@ struct SettingsView: View {
                 } header: {
                     Text("脚本")
                 } footer: {
-                    Text("脚本由原生壳注入游戏 WebView，运行于油猴兼容沙箱")
+                    Text("管理你自己添加的脚本，支持导入 .js 文件或粘贴代码；脚本运行于油猴兼容沙箱")
                         .font(.caption2)
                 }
 
@@ -102,58 +103,180 @@ struct SettingsView: View {
         .navigationViewStyle(.stack)
         .preferredColorScheme(.dark)
     }
-}
 
-/// 脚本管理：分组开关
-struct ScriptListView: View {
+    // MARK: 内置脚本开关（位于游戏功能下方）
 
-    @ObservedObject private var store = ScriptStore.shared
-    @State private var refreshToken = UUID()
-
-    var body: some View {
-        List {
-            ForEach(["内置", "云端"], id: \.self) { group in
-                let items = store.items.filter { $0.group == group }
-                if !items.isEmpty {
-                    Section {
-                        ForEach(items) { item in
-                            scriptRow(item)
-                        }
-                    } header: {
-                        Text(group)
+    private var builtinScriptRows: some View {
+        ForEach(scripts.builtinItems) { item in
+            Toggle(isOn: Binding(
+                get: { scripts.isEnabled(item) },
+                set: { scripts.setEnabled(item, $0) }
+            )) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(item.displayName)
+                        .font(.system(size: 14, weight: .medium))
+                    if !item.detail.isEmpty {
+                        Text(item.detail)
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    }
+                    if item.id == ScriptStore.loginPatchId {
+                        Text("登录依赖，建议保持开启")
+                            .font(.system(size: 10))
+                            .foregroundColor(.orange)
                     }
                 }
             }
         }
-        .id(refreshToken)
-        .listStyle(.insetGrouped)
-        .navigationTitle("脚本管理")
-        .navigationBarTitleDisplayMode(.inline)
     }
+}
 
-    private func scriptRow(_ item: ScriptStore.ScriptItem) -> some View {
-        let binding = Binding<Bool>(
-            get: { store.isEnabled(item.id) },
-            set: { newValue in
-                store.setEnabled(item.id, newValue)
-                refreshToken = UUID()
-            }
-        )
-        return Toggle(isOn: binding) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(item.displayName)
-                    .font(.system(size: 14, weight: .medium))
-                if !item.detail.isEmpty {
-                    Text(item.detail)
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
-                }
-                if item.id == ScriptStore.loginPatchId {
-                    Text("登录依赖，建议保持开启")
-                        .font(.system(size: 10))
-                        .foregroundColor(.orange)
+/// 脚本管理：只管理用户自己添加的脚本（导入 .js / 粘贴代码 / 启停 / 删除）
+struct ScriptListView: View {
+
+    @ObservedObject private var store = ScriptStore.shared
+    @State private var showImporter = false
+    @State private var showAddSheet = false
+
+    var body: some View {
+        List {
+            if store.userItems.isEmpty {
+                emptyState
+            } else {
+                Section {
+                    ForEach(store.userItems) { item in
+                        scriptRow(item)
+                    }
+                } footer: {
+                    Text("停用或删除后重新加载游戏生效")
+                        .font(.caption2)
                 }
             }
         }
+        .listStyle(.insetGrouped)
+        .navigationTitle("脚本管理")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Menu {
+                    Button {
+                        showImporter = true
+                    } label: {
+                        Label("导入 .js 文件", systemImage: "doc.badge.plus")
+                    }
+                    Button {
+                        showAddSheet = true
+                    } label: {
+                        Label("粘贴代码添加", systemImage: "doc.text")
+                    }
+                } label: {
+                    Image(systemName: "plus")
+                }
+            }
+        }
+        .sheet(isPresented: $showImporter) {
+            DocumentPicker { url in
+                if store.addUserScript(fromFile: url) != nil {
+                    toast("脚本已添加")
+                } else {
+                    toast("添加失败：仅支持 .js 脚本文件")
+                }
+            }
+        }
+        .sheet(isPresented: $showAddSheet) {
+            AddScriptView { name, code in
+                if store.addUserScript(code: code, name: name) {
+                    toast("脚本已添加")
+                } else {
+                    toast("添加失败：脚本内容为空")
+                }
+            }
+        }
+    }
+
+    private func scriptRow(_ item: ScriptStore.ScriptItem) -> some View {
+        Toggle(isOn: Binding(
+            get: { store.isEnabled(item) },
+            set: { store.setEnabled(item, $0) }
+        )) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.displayName)
+                    .font(.system(size: 14, weight: .medium))
+                Text(item.detail)
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+            }
+        }
+        .swipeActions(edge: .trailing) {
+            Button(role: .destructive) {
+                store.deleteUserScript(item)
+            } label: {
+                Label("删除", systemImage: "trash")
+            }
+        }
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "doc.badge.plus")
+                .font(.system(size: 36))
+                .foregroundColor(.secondary)
+            Text("还没有添加脚本")
+                .font(.system(size: 14, weight: .medium))
+            Text("点右上角 ＋ 导入 .js 文件或粘贴代码")
+                .font(.system(size: 12))
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 50)
+        .listRowBackground(Color.clear)
+    }
+
+    private func toast(_ message: String) {
+        NotificationCenter.default.post(name: .cdToast, object: nil, userInfo: ["message": message])
+    }
+}
+
+/// 粘贴代码添加脚本
+private struct AddScriptView: View {
+
+    let onSave: (String, String) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var name = ""
+    @State private var code = ""
+
+    var body: some View {
+        NavigationView {
+            Form {
+                Section {
+                    TextField("脚本名称", text: $name)
+                } header: {
+                    Text("名称")
+                }
+                Section {
+                    TextEditor(text: $code)
+                        .font(.system(size: 12, design: .monospaced))
+                        .frame(minHeight: 220)
+                } header: {
+                    Text("脚本代码（JavaScript）")
+                }
+            }
+            .navigationTitle("添加脚本")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("保存") {
+                        onSave(name, code)
+                        dismiss()
+                    }
+                    .disabled(code.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+        .navigationViewStyle(.stack)
     }
 }

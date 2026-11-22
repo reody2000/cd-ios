@@ -163,8 +163,6 @@ def check_web():
         'scripts/builtin/cd_userscript_env.js',
         'scripts/builtin/cd_native_login_patch.js',
         'scripts/builtin/cd_shell_features.js',
-        'scripts/cloud/salt_view.js', 'scripts/cloud/early_black_mask.js',
-        'scripts/config/cloud-scripts-local.json',
     ]
     for rel in required:
         path = os.path.join(WEB, rel.replace('/', os.sep))
