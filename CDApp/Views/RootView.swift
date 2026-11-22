@@ -82,6 +82,7 @@ struct RootView: View {
 
     // MARK: 游戏 Tab
 
+    @ViewBuilder
     private var gameTab: some View {
         if app.port == 0 {
             launchingView
