@@ -98,6 +98,17 @@ enum ScriptInjector {
                 return origOpen.apply(this, arguments);
               };
             } catch (e) {}
+            // 图片源改写：跨域图片会让 WebGL 纹理上传因污染失败（Android 经 shouldInterceptRequest 同源化）
+            try {
+              var desc = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
+              if (desc && desc.set) {
+                Object.defineProperty(HTMLImageElement.prototype, 'src', {
+                  get: desc.get,
+                  set: function (v) { return desc.set.call(this, rw(v)); },
+                  configurable: true
+                });
+              }
+            } catch (e) {}
             try {
               if (typeof window.fetch === 'function') {
                 var origFetch = window.fetch;

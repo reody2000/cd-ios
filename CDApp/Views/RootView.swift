@@ -3,6 +3,8 @@ import SwiftUI
 struct RootView: View {
 
     @EnvironmentObject private var app: AppState
+    @State private var barDimmed = false
+    @State private var barHideToken = 0
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -87,7 +89,23 @@ struct RootView: View {
                     .overlay(Capsule().stroke(Color.white.opacity(0.12), lineWidth: 0.5))
             )
             .padding(.bottom, 10)
-            .opacity(0.92)
+            // 同步 Android 全屏游戏形态：浮条 5 秒无操作后变暗，点击恢复
+            .opacity(barDimmed ? 0.12 : 0.92)
+            .onTapGesture {
+                withAnimation { barDimmed = false }
+                scheduleBarHide()
+            }
+        }
+        .onAppear { scheduleBarHide() }
+    }
+
+    private func scheduleBarHide() {
+        barHideToken += 1
+        let token = barHideToken
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+            if token == barHideToken {
+                withAnimation { barDimmed = true }
+            }
         }
     }
 

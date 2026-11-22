@@ -219,12 +219,10 @@ final class LocalHTTPServer {
         if request.method == "GET" || request.method == "HEAD" {
             let response = serveStatic(path: request.path, headOnly: request.method == "HEAD")
             if response.status != 404 { return response }
-            // 对齐 Android v()/j1()：静态资源未命中且是 API 路径时，反代到游戏服务器
-            if request.path.hasPrefix("/api/") {
-                let target = request.query.isEmpty ? request.path : "\(request.path)?\(request.query)"
-                return bridge.proxyGet(pathWithQuery: target, headers: request.headers)
-            }
-            return response
+            // 对齐 Android u()/a2()：本地镜像只含品牌化子集，静态未命中的 GET 一律回源到真实游戏域名
+            // （jsList 启动脚本、bundle import 资源等都依赖此回源，缺失会导致 boot 永久卡死）
+            let target = request.query.isEmpty ? request.path : "\(request.path)?\(request.query)"
+            return bridge.proxyGet(pathWithQuery: target, headers: request.headers)
         }
         // POST 等：API 路径反代（游戏登录等请求。Android 由 WebView 直发同源 POST，iOS 统一走网关）
         if request.path.hasPrefix("/api/") {

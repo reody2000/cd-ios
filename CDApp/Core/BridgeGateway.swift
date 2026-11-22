@@ -195,9 +195,17 @@ final class BridgeGateway {
     // MARK: GET 反代（对齐 Android v()/j1()：未命中静态资源时转发到游戏服务器）
 
     func proxyGet(pathWithQuery: String, headers: [String: String]) -> HTTPResponse {
-        guard ProxyClient.expand(pathWithQuery) != nil else { return .notFound() }
+        guard let expanded = ProxyClient.expand(pathWithQuery),
+              let url = URL(string: expanded),
+              let host = url.host?.lowercased(),
+              host.hasSuffix("hortorgames.com") || host.hasSuffix("qq.com") else {
+            return .notFound()
+        }
         let result = ProxyClient.get(url: pathWithQuery, headers: headers)
-        guard result.status != 0 else { return .notFound() }
+        guard result.status != 0 else {
+            NSLog("[CD][proxyGet] request failed: \(pathWithQuery)")
+            return .notFound()
+        }
 
         var responseHeaders: [String: String] = [:]
         let drop: Set<String> = ["content-encoding", "content-length", "transfer-encoding",
