@@ -1,21 +1,27 @@
 import SwiftUI
 
+/// 主界面：对齐 Android 端三 Tab 结构（账号 / 游戏 / 设置）
 struct RootView: View {
 
     @EnvironmentObject private var app: AppState
-    @State private var barDimmed = false
-    @State private var barHideToken = 0
+    @State private var tab = 0
+
+    private let accent = Color(red: 0.180, green: 0.420, blue: 0.949)
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            Color.black.ignoresSafeArea()
-
-            if app.port == 0 {
-                launchingView
-            } else {
-                // 与 Android 版一致：启动直接进游戏（未登录/无账号时由游戏内流程引导）
-                gameView
+        VStack(spacing: 0) {
+            tabBar
+            Group {
+                switch tab {
+                case 0:
+                    AccountManagerView(tab: $tab)
+                case 1:
+                    gameTab
+                default:
+                    SettingsView()
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             if let message = app.toastMessage {
                 toastView(message)
@@ -44,12 +50,65 @@ struct RootView: View {
             LoginView(port: app.port)
                 .environmentObject(app)
         }
-        .sheet(isPresented: $app.showSettings) {
-            SettingsView()
+    }
+
+    // MARK: 顶部 Tab（账号 / 游戏 / 设置）
+
+    private var tabBar: some View {
+        HStack(spacing: 0) {
+            tabButton("账号", index: 0)
+            tabButton("游戏", index: 1)
+            tabButton("设置", index: 2)
         }
-        .sheet(isPresented: $app.showAccounts) {
-            AccountListView(standalone: false)
-                .environmentObject(app)
+        .background(Color.white)
+    }
+
+    private func tabButton(_ title: String, index: Int) -> some View {
+        Button {
+            tab = index
+        } label: {
+            VStack(spacing: 7) {
+                Text(title)
+                    .font(.system(size: 15, weight: tab == index ? .semibold : .regular))
+                    .foregroundColor(tab == index ? accent : Color(red: 0.35, green: 0.37, blue: 0.40))
+                Rectangle()
+                    .fill(tab == index ? accent : Color.clear)
+                    .frame(height: 2.5)
+            }
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: 游戏 Tab
+
+    private var gameTab: some View {
+        if app.port == 0 {
+            launchingView
+        } else {
+            gameContent
+        }
+    }
+
+    private var gameContent: some View {
+        ZStack(alignment: .topTrailing) {
+            GameWebView(port: app.port)
+                .id(app.gameKey)
+                .ignoresSafeArea()
+
+            Button {
+                app.retryGame()
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.white)
+                    .padding(11)
+                    .background(Color.black.opacity(0.5))
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 12)
+            .padding(.trailing, 14)
         }
     }
 
@@ -66,62 +125,7 @@ struct RootView: View {
                 .foregroundColor(.white.opacity(0.6))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    // MARK: 游戏
-
-    private var gameView: some View {
-        ZStack(alignment: .bottom) {
-            GameWebView(port: app.port)
-                .id(app.gameKey)
-                .ignoresSafeArea()
-
-            HStack(spacing: 10) {
-                floatingButton("账号", "person.2.fill") { app.showAccounts = true }
-                floatingButton("登录", "qrcode") { app.showLogin = true }
-                floatingButton("设置", "slider.horizontal.3") { app.showSettings = true }
-                floatingButton("重载", "arrow.clockwise") { app.retryGame() }
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(
-                Capsule().fill(Color.black.opacity(0.55))
-                    .overlay(Capsule().stroke(Color.white.opacity(0.12), lineWidth: 0.5))
-            )
-            .padding(.bottom, 10)
-            // 同步 Android 全屏游戏形态：浮条 5 秒无操作后变暗，点击恢复
-            .opacity(barDimmed ? 0.12 : 0.92)
-            .onTapGesture {
-                withAnimation { barDimmed = false }
-                scheduleBarHide()
-            }
-        }
-        .onAppear { scheduleBarHide() }
-    }
-
-    private func scheduleBarHide() {
-        barHideToken += 1
-        let token = barHideToken
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
-            if token == barHideToken {
-                withAnimation { barDimmed = true }
-            }
-        }
-    }
-
-    private func floatingButton(_ title: String, _ icon: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 5) {
-                Image(systemName: icon).font(.system(size: 12, weight: .semibold))
-                Text(title).font(.system(size: 12, weight: .semibold))
-            }
-            .foregroundColor(.white)
-            .padding(.horizontal, 11)
-            .padding(.vertical, 7)
-            .background(Color.white.opacity(0.10))
-            .clipShape(Capsule())
-        }
-        .buttonStyle(.plain)
+        .background(Color.black)
     }
 
     // MARK: Toast
@@ -135,7 +139,7 @@ struct RootView: View {
             .background(Color.black.opacity(0.82))
             .clipShape(Capsule())
             .overlay(Capsule().stroke(Color.white.opacity(0.12), lineWidth: 0.5))
-            .padding(.bottom, 90)
+            .padding(.bottom, 40)
             .transition(.opacity)
             .animation(.easeInOut(duration: 0.2), value: app.toastMessage)
     }

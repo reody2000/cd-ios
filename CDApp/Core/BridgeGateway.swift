@@ -146,7 +146,14 @@ final class BridgeGateway {
                 notifyOnMain(.cdToast, userInfo: ["message": "角色获取失败：\(message)"])
             }
             return HTTPResponse.json(["v": NSNull()])
-        case "reportCurrentServer", "reportGameReadyForScripts", "reportLoginSuccessForScripts",
+        case "reportLoginSuccessForScripts":
+            // 记录账号登录时间（账号卡片「上次登录时间」）
+            if let name = AccountStore.shared.currentName {
+                AccountStore.shared.markLogin(name: name)
+                notifyOnMain(.cdAccountsChanged)
+            }
+            return HTTPResponse.json(["v": NSNull()])
+        case "reportCurrentServer", "reportGameReadyForScripts",
              "reportRoleList", "reportInfiniteLineupGift", "reportSaltViewGift":
             if method == "reportGameReadyForScripts" { notifyOnMain(.cdGameReady) }
             return HTTPResponse.json(["v": NSNull()])

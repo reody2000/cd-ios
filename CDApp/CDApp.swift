@@ -8,7 +8,6 @@ struct CDApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(app)
-                .preferredColorScheme(.dark)
                 .statusBarHidden(true)
         }
     }

@@ -94,6 +94,21 @@ final class AccountStore {
         accountsDirectory.appendingPathComponent(Self.normalize(name))
     }
 
+    // MARK: 上次登录时间（对齐 Android 账号卡片展示）
+    private let lastLoginKey = "account_last_login"
+
+    func lastLogin(for name: String) -> Date? {
+        let map = UserDefaults.standard.dictionary(forKey: lastLoginKey) as? [String: Double]
+        guard let t = map?[name] else { return nil }
+        return Date(timeIntervalSince1970: t)
+    }
+
+    func markLogin(name: String) {
+        var map = UserDefaults.standard.dictionary(forKey: lastLoginKey) as? [String: Double] ?? [:]
+        map[name] = Date().timeIntervalSince1970
+        UserDefaults.standard.set(map, forKey: lastLoginKey)
+    }
+
     // MARK: 当前账号
     var currentName: String? {
         get { UserDefaults.standard.string(forKey: currentKey) }
