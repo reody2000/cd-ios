@@ -317,6 +317,10 @@ window.convertAssets = function (url) {
   if (!url.startsWith('assets/') || url.startsWith('assets/internal')) {
     return url
   }
+  // main bundle 只存在于官方 H5web 全量树（remote/main 实测全系 404，h5web/assets/main 200）
+  if (url.slice(7).split('/')[0] === 'main') {
+    return 'https://xxz-xyzw-res.hortorgames.com/h5web/' + url
+  }
   let newUrl = 'https://xxz-xyzw-res.hortorgames.com/remote/' + url.slice(7)
   if (url.startsWith('assets/game') || url.startsWith('assets/launcher') || url.startsWith('assets/TEST_REMOTE_MODULE')) {
     if (url.endsWith('.js') || url.endsWith('.jsc')) {
